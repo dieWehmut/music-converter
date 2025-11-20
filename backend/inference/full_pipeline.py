@@ -1,102 +1,72 @@
-# backend/inference/full_pipeline.py
-
+import os
 from pathlib import Path
 
-from .analyze import analyzer  # 已经在 analyze.py 里创建好的单例
+from .analyze import analyzer
+from .prompt_builder import PromptBuilder
 from .melody_extractor import MelodyExtractor
 from .generate_music import MusicGenerator
-from .prompt_builder import PromptBuilder
 
 
 class FullMusicPipeline:
-    """
-    完整音乐处理流程：
-    1. 分析原歌曲 emotion + style
-    2. 根据用户选择的目标风格 / 情绪构造 prompt
-    3. 提取主旋律 melody.wav
-    4. 用 MusicGen 根据 prompt + melody 生成新歌
-    """
-
-    def __init__(self, model_name: str = "facebook/musicgen-small"):
-        self.analyzer = analyzer               # 复用已加载的模型
+    def __init__(self):
+        self.analyzer = analyzer
+        self.prompt_builder = PromptBuilder()
         self.melody_extractor = MelodyExtractor()
-        self.music_generator = MusicGenerator(model_name=model_name)
+        self.music_generator = MusicGenerator()
 
-    def process(
-        self,
-        audio_path: str,
-        target_style: str,
-        target_emotion: str,
-        output_dir: str | None = None,
-    ) -> dict:
-        """
-        :param audio_path: 原始音频路径
-        :param target_style: 目标风格（如 "lofi", "jazz"...）
-        :param target_emotion: 目标情绪（如 "calm", "sad"...）
-        :param output_dir: 输出目录，不传则用 audio 所在目录
-        :return: 一个字典，包含原风格/情绪、prompt、melody路径、生成结果路径
-        """
-
+    def process(self, audio_path, target_style, target_emotion, output_dir="output"):
         audio_path = Path(audio_path)
-        if output_dir is None:
-            output_dir = audio_path.parent
-        else:
-            output_dir = Path(output_dir)
+        output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1) 分析原歌曲的 emotion + style
-        print("🎵 [Pipeline] Analyzing original audio ...")
-        result = self.analyzer.analyze(str(audio_path))
-        original_emotion = result["emotion"]
-        original_style = result["style"]
-        print(f"   原风格: {original_style}, 原情绪: {original_emotion}")
+        print("🔍 [1/4] Analyzing input audio...")
+        analysis = self.analyzer.analyze(str(audio_path))
+        print("Input Style:", analysis["style"])
+        print("Input Emotion:", analysis["emotion"])
 
-        # 2) 构造目标 prompt（根据目标风格 + 目标情绪）
-        print("🎨 [Pipeline] Building prompt ...")
-        prompt = PromptBuilder.build_prompt(target_style, target_emotion)
-        print(f"   Prompt: {prompt}")
+        print("\n🧠 [2/4] Building hardcore prompt...")
+        prompt = self.prompt_builder.build_prompt(target_style, target_emotion)
+        print(prompt)
 
-        # 3) 提取 melody.wav
-        print("🎼 [Pipeline] Extracting melody ...")
-        melody_path = output_dir / "melody.wav"
+        print("\n🎼 [3/4] Extracting hardcore melody contour...")
         melody_path = self.melody_extractor.extract_melody_to_wav(
             str(audio_path),
-            output_path=str(melody_path)
+            output_path=output_dir / "melody.wav"
         )
 
-        # 4) 用 MusicGen 生成新音乐
-        print("🚀 [Pipeline] Generating new music ...")
-        output_path = output_dir / "generated_style_transfer.wav"
-        output_path = self.music_generator.generate_with_melody(
+        print("\n🎶 [4/4] Generating transformed music...")
+        output_audio_path = output_dir / "generated_style_transfer.wav"
+
+        self.music_generator.generate_with_melody(
             prompt=prompt,
-            melody_path=melody_path,
-            output_path=str(output_path)
+            melody_path=str(melody_path),
+            output_path=str(output_audio_path),
+            max_new_tokens=768
         )
+
+        print("\n🎉 Done! New song saved at:", output_audio_path)
 
         return {
-            "original_style": original_style,
-            "original_emotion": original_emotion,
-            "target_style": target_style,
-            "target_emotion": target_emotion,
+            "analysis": analysis,
             "prompt": prompt,
-            "melody_path": melody_path,
-            "output_path": output_path,
+            "output": str(output_audio_path)
         }
 
 
-# 方便你直接在命令行测试
 if __name__ == "__main__":
-    test_audio = r"D:\idea_python\music_project\backend\test_audio.wav"
+    print("\n===============================")
+    print(" 🚀 Hardcore Full Pipeline Start ")
+    print("===============================\n")
 
     pipeline = FullMusicPipeline()
 
-    result = pipeline.process(
-        audio_path=test_audio,
-        target_style="lofi",
-        target_emotion="calm",
+    INPUT_AUDIO = r"D:\idea_python\music_project\backend\test_audio.wav"
+    TARGET_STYLE = "rock"
+    TARGET_EMOTION = "happy"
+
+    pipeline.process(
+        audio_path=INPUT_AUDIO,
+        target_style=TARGET_STYLE,
+        target_emotion=TARGET_EMOTION,
         output_dir=r"D:\idea_python\music_project\backend\output"
     )
-
-    print("\n✅ Pipeline 完成，结果：")
-    for k, v in result.items():
-        print(f"{k}: {v}")

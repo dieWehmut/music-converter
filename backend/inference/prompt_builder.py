@@ -1,43 +1,61 @@
-# backend/inference/prompt_builder.py
-
 class PromptBuilder:
     """
-    根据目标风格 + 目标情绪，自动生成 MusicGen prompt 文本
+    Hardcore Prompt：剧烈风格迁移 + 明显情绪差异
     """
 
-    # 可以按你模型的 style label 来写
-    STYLE_TEMPLATES = {
-        "rock": "rock style with distorted electric guitars, punchy drums and energetic bass",
-        "jazz": "smooth jazz style with saxophone, upright bass and soft drums",
-        "classical": "classical orchestral style with strings and piano",
-        "pop": "modern pop style with bright synths and punchy drums",
-        "lofi": "lofi chillhop style with soft drums, warm pads and vinyl noise",
-        "soundtrack": "cinematic soundtrack style with strings and atmospheric textures",
+    STYLE_INFO = {
+        "rock": {
+            "instrument": "distorted electric guitars, aggressive drums, heavy bass",
+            "harmony": "rock power-chords",
+            "feel": "energetic, raw, powerful"
+        },
+        "jazz": {
+            "instrument": "saxophone, upright bass, jazz piano, brushed drums",
+            "harmony": "extended jazz chords, swing rhythm",
+            "feel": "smooth, expressive, relaxed"
+        },
+        "classical": {
+            "instrument": "orchestral strings, brass, woodwinds, piano",
+            "harmony": "classical orchestral harmony",
+            "feel": "cinematic, elegant"
+        },
+        "pop": {
+            "instrument": "bright synths, punchy drums, electronic bass",
+            "harmony": "catchy pop chords",
+            "feel": "clean, modern, upbeat"
+        },
+        "electronic": {
+            "instrument": "synth leads, EDM drums, electronic bass",
+            "harmony": "futuristic harmonic motion",
+            "feel": "powerful, synthetic"
+        },
     }
 
-    EMOTION_TEMPLATES = {
-        "happy": "bright, uplifting and positive mood",
-        "sad": "slow, melancholic and emotional mood",
-        "angry": "aggressive, intense and powerful feeling",
-        "tender": "warm, gentle and intimate feeling",
-        "scary": "dark, tense and suspenseful atmosphere",
-        "funny": "playful, quirky and light-hearted mood",
-        "calm": "calm, relaxing and peaceful mood",
+    EMOTION_INFO = {
+        "angry":    "aggressive, intense, dark emotions",
+        "funny":    "playful, quirky, humorous energy",
+        "happy":    "bright, uplifting, joyful mood",
+        "sad":      "melancholic, emotional, minor-key feeling",
+        "scary":    "tense, suspenseful, dark atmosphere",
+        "tender":   "warm, gentle, intimate tone"
     }
 
     @classmethod
-    def build_prompt(cls, target_style: str, target_emotion: str) -> str:
-        s = target_style.lower()
-        e = target_emotion.lower()
+    def build_prompt(cls, style, emotion):
+        style = style.lower()
+        emotion = emotion.lower()
 
-        style_part = cls.STYLE_TEMPLATES.get(s, s + " style")
-        emo_part = cls.EMOTION_TEMPLATES.get(e, e + " mood")
+        s = cls.STYLE_INFO[style]
+        e = cls.EMOTION_INFO[emotion]
 
         prompt = (
-            f"A {emo_part} {s} track. "
-            f"Use {style_part}. "
-            f"Strongly emphasize the {emo_part}. "
-            f"Avoid copying the original timbre or arrangement; "
-            f"re-interpret the original melody with new harmony and new rhythm."
+            f"Create a hardcore {style} style reinterpretation expressing {e}. "
+            f"Use {s['instrument']} with {s['harmony']}. "
+            f"Strongly transform rhythm, harmony, instrumentation, and arrangement. "
+            f"Do NOT reuse any original timbre or mix. "
+            f"Preserve only the broad melodic contour, "
+            f"but rebuild the accompaniment entirely in {style} style "
+            f"with a {s['feel']} character."
         )
+
         return prompt
