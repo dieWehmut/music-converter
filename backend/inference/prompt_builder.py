@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import numpy as np
 from backend.inference.melody_scorer import MelodyScorer
 
@@ -197,46 +198,52 @@ Include:
 
         return final_prompt
 =======
+=======
+# backend/inference/prompt_builder.py
+
+>>>>>>> cb02a3d (portionwise_failed_model_v3)
 class PromptBuilder:
     """
-    Hardcore Prompt：剧烈风格迁移 + 明显情绪差异
+    A1 模式 Prompt：
+    - 强制要求重写和声、节奏、乐器编配
+    - 只保留被变形后的 melody 轮廓
     """
 
     STYLE_INFO = {
         "rock": {
             "instrument": "distorted electric guitars, aggressive drums, heavy bass",
-            "harmony": "rock power-chords",
-            "feel": "energetic, raw, powerful"
+            "harmony": "dense rock power-chords and riffs",
+            "feel": "energetic, raw, punchy"
         },
         "jazz": {
             "instrument": "saxophone, upright bass, jazz piano, brushed drums",
-            "harmony": "extended jazz chords, swing rhythm",
-            "feel": "smooth, expressive, relaxed"
+            "harmony": "extended jazz chords, colorful harmony and swing rhythm",
+            "feel": "smooth, expressive, sophisticated"
         },
         "classical": {
-            "instrument": "orchestral strings, brass, woodwinds, piano",
-            "harmony": "classical orchestral harmony",
-            "feel": "cinematic, elegant"
+            "instrument": "orchestral strings, brass, woodwinds and grand piano",
+            "harmony": "rich classical orchestral harmony",
+            "feel": "cinematic, dramatic, elegant"
         },
         "pop": {
-            "instrument": "bright synths, punchy drums, electronic bass",
-            "harmony": "catchy pop chords",
-            "feel": "clean, modern, upbeat"
+            "instrument": "bright synths, tight drums, electronic bass and modern FX",
+            "harmony": "catchy pop chord progressions",
+            "feel": "clean, modern, radio-ready"
         },
         "electronic": {
-            "instrument": "synth leads, EDM drums, electronic bass",
-            "harmony": "futuristic harmonic motion",
-            "feel": "powerful, synthetic"
+            "instrument": "synth leads, EDM drums, sub bass and sound design",
+            "harmony": "futuristic and driving harmonic motion",
+            "feel": "energetic, synthetic, powerful"
         },
     }
 
     EMOTION_INFO = {
         "angry":    "aggressive, intense, dark emotions",
-        "funny":    "playful, quirky, humorous energy",
-        "happy":    "bright, uplifting, joyful mood",
+        "funny":    "playful, quirky, humorous mood",
+        "happy":    "bright, uplifting, joyful energy",
         "sad":      "melancholic, emotional, minor-key feeling",
-        "scary":    "tense, suspenseful, dark atmosphere",
-        "tender":   "warm, gentle, intimate tone"
+        "scary":    "tense, suspenseful, unsettling atmosphere",
+        "tender":   "warm, gentle, intimate and delicate tone"
     }
 
     @classmethod
@@ -248,13 +255,15 @@ class PromptBuilder:
         e = cls.EMOTION_INFO[emotion]
 
         prompt = (
-            f"Create a hardcore {style} style reinterpretation expressing {e}. "
-            f"Use {s['instrument']} with {s['harmony']}. "
-            f"Strongly transform rhythm, harmony, instrumentation, and arrangement. "
-            f"Do NOT reuse any original timbre or mix. "
-            f"Preserve only the broad melodic contour, "
-            f"but rebuild the accompaniment entirely in {style} style "
-            f"with a {s['feel']} character."
+            f"Create a heavily transformed {style} style reinterpretation expressing {e}. "
+            f"Use {s['instrument']} and {s['harmony']}. "
+            f"Completely rewrite the original harmony, chord progressions, bassline, "
+            f"drum patterns and overall arrangement in a strong {style} style. "
+            f"Do NOT reuse the original arrangement, instrumentation, mix or timbre. "
+            f"Only keep a faint trace of the melodic contour from the provided melody, "
+            f"which has already been transformed. "
+            f"Make the track feel like a new {style} piece with {s['feel']} character, "
+            f"with bold stylistic deviation and clearly different mood from the original song."
         )
 
         return prompt

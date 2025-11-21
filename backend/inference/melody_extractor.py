@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # ============================
 # MelodyExtractor vFinal (5s version)
 # ============================
@@ -162,56 +163,60 @@ class MelodyExtractor:
         print(f"[MelodyExtractor] Saved (5s): {output_path}")
         return str(output_path)
 =======
+=======
+# backend/inference/melody_extractor.py
+
+>>>>>>> cb02a3d (portionwise_failed_model_v3)
 import librosa
 import soundfile as sf
-import numpy as np
 from pathlib import Path
+import numpy as np
+
+from .melody_transformer import MelodyTransformer
+
 
 class MelodyExtractor:
     """
-    Balanced 旋律提取版：
-    - 保留旋律清晰可听
-    - 轻微弱化，让风格转换更明显
-    - 不会无声 / 不会过度破坏
+    A1 模式旋律提取：
+    - 对原始音频做强旋律变形（pitch + 节奏）
+    - 仅保留前 3 秒作为 melody conditioning
+    - 这样既有一点影子，又给 MusicGen 极大自由
     """
 
     def __init__(self, target_sr=32000):
         self.target_sr = target_sr
+        self.transformer = MelodyTransformer(target_sr=target_sr)
 
-    def extract_melody_to_wav(self, audio_path, output_path=None):
-        # 加载音频（32kHz）
+    def extract_melody_to_wav(
+        self,
+        audio_path,
+        target_style: str,
+        target_emotion: str,
+        strength: float = 0.9,
+        output_path=None
+    ):
+        # 1. 加载原始音频（32kHz）
         y, sr = librosa.load(audio_path, sr=self.target_sr, mono=True)
 
-        # -------------------------------
-        # Step 1 — 保留旋律但稍弱化
-        # -------------------------------
-        y = y * 0.2  # 音量保留 20%，弱化但仍可听
+        # 2. 做 A1 级旋律变形（几乎认不出）
+        y_trans, sr = self.transformer.transform(
+            y, sr, style=target_style, emotion=target_emotion, strength=strength
+        )
 
-        # -------------------------------
-        # Step 2 — 轻度低通滤波
-        # -------------------------------
-        y = librosa.effects.preemphasis(y, coef=-0.8)  # 柔化高频，不破坏旋律
+        # 3. 只保留前 3 秒作为 melody conditioning
+        MAX_SECONDS = 3
+        max_len = int(sr * MAX_SECONDS)
+        if len(y_trans) > max_len:
+            y_trans = y_trans[:max_len]
 
-        # -------------------------------
-        # Step 3 — 加轻微噪声，保证差异明显
-        # -------------------------------
-        y += np.random.randn(len(y)) * 0.0015  # 轻噪，不会听不见
+        # 4. 再加一点极轻噪声
+        y_trans += np.random.randn(len(y_trans)) * 0.001
 
-        # -------------------------------
-        # Step 4 — 限制最长时间（防 MusicGen 崩溃）
-        # -------------------------------
-        MAX_SECONDS = 12
-        max_len = self.target_sr * MAX_SECONDS
-        if len(y) > max_len:
-            y = y[:max_len]
-
-        # -------------------------------
-        # Step 5 — 保存
-        # -------------------------------
+        # 5. 保存到 melody.wav
         if output_path is None:
             parent = Path(audio_path).parent
             output_path = parent / "melody.wav"
 
-        sf.write(output_path, y, self.target_sr)
+        sf.write(output_path, y_trans, sr)
         return str(output_path)
 >>>>>>> decbe0b (style_emo_model_v2)
