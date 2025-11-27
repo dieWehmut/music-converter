@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # backend/inference/analyze.py
 
 from pathlib import Path
@@ -61,31 +62,38 @@ analyzer = Analyzer()
 # backend/inference/analyze.py
 
 from pathlib import Path
+=======
+>>>>>>> 368ab93 (need_test_try)
 from .emotion_recognition import predict_emotion
 from .style_recognition import predict_style
+from .melody_extractor import MelodyExtractor
 
 
 class Analyzer:
+
     def __init__(self):
-        self.root = Path(__file__).resolve().parent.parent
+        self.melody_extractor = MelodyExtractor()
 
-    def analyze(self, audio_path: str) -> dict:
-        audio_path = str(audio_path)
+    def analyze_melody(self, path):
+        return self.melody_extractor.extract(path)
 
-        # 风格、概率
-        style, style_prob = predict_style(audio_path)
-
-        # 情绪、概率
-        emotion, emotion_prob = predict_emotion(audio_path)
+    def analyze(self, path):
+        style, style_prob = predict_style(path)
+        emotion, emotion_prob = predict_emotion(path)
+        melody = self.analyze_melody(path)
 
         return {
             "style": style,
-            "emotion": emotion,
             "style_prob": style_prob,
-            "emotion_prob": emotion_prob
+            "emotion": emotion,
+            "emotion_prob": emotion_prob,
+            "melody": melody
         }
+<<<<<<< HEAD
 
 
 # 全局单例
 analyzer = Analyzer()
 >>>>>>> 0cf27b1 (failed_v4)
+=======
+>>>>>>> 368ab93 (need_test_try)

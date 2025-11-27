@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import numpy as np
 from backend.inference.melody_scorer import MelodyScorer
 
@@ -199,84 +200,26 @@ Include:
 =======
 # backend/inference/prompt_builder.py
 
+=======
+>>>>>>> 368ab93 (need_test_try)
 class PromptBuilder:
     """
-    方案 A：多 attempt 用的最终 Prompt 构造器
-
-    - 使用你的模型分析得到：
-        * 原始风格 orig_style
-        * 原始情绪 orig_emotion
-    - 使用用户指定目标：
-        * target_style
-        * target_emotion
-    - 随 attempt 变化：
-        * 旋律保留比例（从保守到弱化）
-        * 风格/情绪强化程度
-    - 加入防静音 / 连续性 / 高质量混音描述
+    Stable prompt builder for MusicGen.
+    Keep prompt short, clear, effective.
     """
 
-    STYLE_PROFILE = {
-        "pop": {
-            "tempo": "medium tempo (~110 BPM)",
-            "energy": "balanced dynamics",
-            "brightness": "clean and modern tone",
-            "harmony": "catchy pop chord progressions",
-            "texture": "bright synth and pad textures",
-            "instrument": "modern drums, bright synths, electric bass, piano, pads",
-        },
-        "rock": {
-            "tempo": "fast tempo (~130–150 BPM)",
-            "energy": "strong, punchy dynamics",
-            "brightness": "bright guitar-driven tone",
-            "harmony": "power chords and energetic rock riffs",
-            "texture": "high-frequency guitar texture",
-            "instrument": "distorted electric guitars, aggressive drums, bass",
-        },
-        "jazz": {
-            "tempo": "slow to medium tempo (~80–110 BPM)",
-            "energy": "smooth, laid-back dynamics",
-            "brightness": "warm, mellow tone",
-            "harmony": "extended jazz chords and ii–V–I progressions",
-            "texture": "rich mid-frequency harmonic texture",
-            "instrument": "upright bass, jazz piano, brushed drums, saxophone",
-        },
-        "classical": {
-            "tempo": "expressive, flexible tempo",
-            "energy": "wide dynamic range",
-            "brightness": "balanced orchestral tone",
-            "harmony": "classical orchestration and voice leading",
-            "texture": "full-spectrum orchestral texture",
-            "instrument": "strings, woodwinds, brass, piano",
-        },
-        "electronic": {
-            "tempo": "steady fast tempo (~120–140 BPM)",
-            "energy": "high intensity with strong low end",
-            "brightness": "bright synthetic tone",
-            "harmony": "simple, repetitive EDM-style harmony",
-            "texture": "sidechain pumping synth textures",
-            "instrument": "synth leads, pads, EDM drums, sub bass, FX",
-        },
-    }
+    def build(self, style, emotion, melody_info):
+        key = melody_info.get("key", "C")
+        scale = melody_info.get("scale", "major")
+        tempo = melody_info.get("tempo", 120)
 
-    EMOTION_PROFILE = {
-        "happy": "bright, uplifting, joyful feeling",
-        "sad": "soft, emotional, melancholic mood",
-        "angry": "intense, aggressive, high-energy emotion",
-        "scary": "dark, tense, suspenseful atmosphere",
-        "tender": "warm, intimate, gentle emotion",
-        "funny": "playful, quirky, humorous character",
-    }
-
-    @classmethod
-    def _describe_style(cls, style: str) -> str:
-        style = (style or "").lower()
-        s = cls.STYLE_PROFILE.get(style)
-        if not s:
-            return f"{style} style music"
-        return (
-            f"{s['tempo']}, {s['energy']}, {s['brightness']}, "
-            f"{s['harmony']}, {s['texture']}. Typical instruments: {s['instrument']}."
+        prompt = (
+            f"A {style} music track with a {emotion} mood. "
+            f"Key: {key} {scale}. "
+            f"Tempo: around {tempo} BPM. "
+            "Coherent structure, clear melody, studio-quality sound."
         )
+<<<<<<< HEAD
 
     @classmethod
     def build_prompt(
@@ -377,3 +320,6 @@ class PromptBuilder:
 
         return header + style_part + melody_part + strength + quality
 >>>>>>> 0cf27b1 (failed_v4)
+=======
+        return prompt
+>>>>>>> 368ab93 (need_test_try)
