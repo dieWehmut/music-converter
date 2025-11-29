@@ -120,7 +120,6 @@ class FullMusicPipeline:
     # ----------------------------------
     def build_melody_info(self, audio_path):
 
-        # 提取一段旋律音频，供分析使用
         tmp = self.melody_extractor.extract_melody_to_wav(
             audio_path,
             strength=0.9,
@@ -128,11 +127,9 @@ class FullMusicPipeline:
             output_path="backend/output/_tmp_analysis_melody.wav",
         )
 
-        # key 信息基于完整音频
         y_full, sr_full = self.melody_extractor._load_audio(audio_path)
         tonic_pc, mode, key_name = self.melody_extractor._detect_key(y_full, sr_full)
 
-        # 对提取的旋律进行 f0 分析
         y, sr = self.melody_extractor._load_audio(tmp)
         f0 = self.melody_extractor._extract_f0(y, sr)
 
@@ -143,16 +140,13 @@ class FullMusicPipeline:
             if f0_valid.size == 0:
                 f0_valid = np.array([])
 
-        # 评分器来自 PromptBuilder.scorer
         scorer = self.prompt_builder.scorer
 
-        # pitch range
         if len(f0_valid):
             pitch_range = float(np.max(f0_valid) - np.min(f0_valid))
         else:
             pitch_range = 0.0
 
-        # f0 相关的评分需要判空
         if f0 is None or f0_valid.size == 0:
             hook_score = 0.0
             scale_corr = 0.0
@@ -184,9 +178,13 @@ class FullMusicPipeline:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- Analyze original ---
+        # ======================================================
+        # ★★★ 新增：打印原音乐 style / emotion
+        # ======================================================
         print("🔍 Analyzing original audio…")
         orig = self.analyzer.analyze(str(audio_path))
+        print(f"🎵 Original Style:   {orig['style']}")
+        print(f"😊 Original Emotion: {orig['emotion']}")
 
         # --- Melody info ---
         print("\n🎼 Extracting melody info…")
@@ -203,6 +201,9 @@ class FullMusicPipeline:
                 "contour_score": 0,
             }
 
+        # ======================================================
+        # ★★★ 新增：best-of 初始化
+        # ======================================================
         best_score = -1
         best_output = None
         best_result = None
@@ -224,7 +225,7 @@ class FullMusicPipeline:
             print("\n🧠 Prompt:")
             print(prompt)
 
-            # --- melody extract (默认 mode='low'，更稳定)
+            # --- melody extract ---
             raw = self.melody_extractor.extract_melody_to_wav(
                 str(audio_path),
                 target_style=target_style,
@@ -232,14 +233,13 @@ class FullMusicPipeline:
                 strength=0.9,
                 output_path=output_dir / f"melody_attempt_{attempt}.wav",
                 weaken_level=attempt - 1,
-                # mode 不传则使用默认 "low"
             )
 
             # --- melody transform ---
             transformed = self.melody_transformer.transform(
                 raw,
                 attempt=attempt,
-                prev_score=best_score,  # 这里仍然用总分作为反馈强度，不改大逻辑
+                prev_score=best_score,
             )
 
             # --- generate ---
@@ -255,12 +255,17 @@ class FullMusicPipeline:
                 temperature=1.0,
                 top_p=0.95,
                 do_sample=True,
+
+                # ======================================================
+                # ★★★ 新增：传入 style=target_style
+                # ======================================================
+                style=target_style,
             )
 
             # --- analyze ---
             gen = self.analyzer.analyze(str(out_file))
 
-            # --- score v4 ---
+            # --- score ---
             score_info = compute_final_score(orig, gen, target_style, target_emotion)
             score_total = score_info["total"]
 
@@ -272,13 +277,15 @@ class FullMusicPipeline:
             print(f"  JS Diverg.:   {score_info['js']:.3f}")
             print(f"  Confidence:   {score_info['confidence']:.3f}")
 
-            # --- keep best ---
+            # ======================================================
+            # ★★★ 新增：best-of，仅 3 行
+            # ======================================================
             if score_total > best_score:
                 best_score = score_total
                 best_output = str(out_file)
                 best_result = gen
 
-            # --- early stop ---
+            # --- early stop（你的逻辑，不动） ---
             if score_total >= 90:
                 print("✨ High-quality result achieved (A+). Early stop.")
                 break
