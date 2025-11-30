@@ -1,0 +1,10 @@
+.venv
+__pycache__
+*.pyc
+node_modules
+.git
+*.log
+*.wav
+*.mp3
+*.ogg
+*.flac
