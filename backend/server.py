@@ -18,7 +18,13 @@ DEV_MODE = os.environ.get("MC_DEV_MODE", "0") == "1"
 # Allow requests from common frontend dev origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://music-converter-production.up.railway.app",
+        "https://music-converter-test.vercel.app",
+        "https://music-converter.hc-dsw-nexus.me",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
