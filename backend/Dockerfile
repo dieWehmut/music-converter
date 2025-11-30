@@ -22,16 +22,21 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# 先复制 requirements 再复制代码以利用缓存层
+# 构建时可选择是否安装重量级依赖（torch/tensorflow）
+# 默认不安装以保持镜像小（使用 Railway 免费层时适合）。
+# 若需要完整模型，在构建时传入 --build-arg INSTALL_HEAVY=true
+ARG INSTALL_HEAVY=false
+
+# 先把两个 requirements 都复制进来（small / full），再根据 build-arg 安装
+COPY backend/requirements-light.txt /app/requirements-light.txt
 COPY backend/requirements.txt /app/requirements.txt
 COPY backend/ /app
 
 RUN python -m pip install --upgrade pip
-# requirements.txt 中可包含 PyTorch CPU wheel 源 (-f)
-# 使用 --no-cache-dir 降低镜像大小并避免缓存相关问题
-RUN pip install --no-cache-dir -r requirements.txt
-# 确保 gunicorn 可用
-RUN pip install gunicorn
+# 默认安装精简依赖，除非显式要求安装重量级依赖
+RUN if [ "$INSTALL_HEAVY" = "true" ] ; then pip install --no-cache-dir -r requirements.txt ; else pip install --no-cache-dir -r requirements-light.txt ; fi
+# 确保 gunicorn 可用（再次安装无害，且保证 runtime 有 gunicorn）
+RUN pip install --no-cache-dir gunicorn
 
 EXPOSE 8000
 

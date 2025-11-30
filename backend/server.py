@@ -79,7 +79,11 @@ async def extract_features(file: UploadFile = File(...)):
     tmp_path = None
     try:
         tmp_path = _save_upload_to_temp(file)
-        from backend.inference.analyze import analyzer
+        try:
+            from backend.inference.analyze import analyzer
+        except ImportError as ie:
+            LOG.warning("extract_features import failed: %s", ie)
+            raise HTTPException(status_code=503, detail="Server not configured with ML dependencies (torch/tensorflow). Rebuild with INSTALL_HEAVY=true or use dev mode.")
 
         result = analyzer.analyze(tmp_path)
         # If analyzer returned an error dict, surface it as 500
@@ -149,7 +153,11 @@ async def convert_audio(
         out_dir = Path("backend/output")
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        from backend.inference.full_pipeline import FullMusicPipeline
+        try:
+            from backend.inference.full_pipeline import FullMusicPipeline
+        except ImportError as ie:
+            LOG.warning("convert_audio import failed: %s", ie)
+            raise HTTPException(status_code=503, detail="Server not configured with ML dependencies (torch/tensorflow). Rebuild with INSTALL_HEAVY=true or use dev mode.")
 
         pipeline = FullMusicPipeline()
         # 使用提供的 style / emotion，若为空则使用默认值
