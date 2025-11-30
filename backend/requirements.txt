@@ -10,7 +10,7 @@ soundfile
 joblib
 python-multipart
 
-tensorflow-cpu==2.12.0
+tensorflow==2.12.0
 torch==2.2.0
 transformers==4.36.2
 xgboost==3.0.0
