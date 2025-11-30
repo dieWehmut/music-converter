@@ -30,7 +30,8 @@ ARG INSTALL_HEAVY=false
 # 先把两个 requirements 都复制进来（small / full），再根据 build-arg 安装
 COPY backend/requirements-light.txt /app/requirements-light.txt
 COPY backend/requirements.txt /app/requirements.txt
-COPY backend/ /app
+# Copy the backend directory as a package so imports like `backend.inference` work
+COPY backend /app/backend
 
 RUN python -m pip install --upgrade pip
 # 默认安装精简依赖，除非显式要求安装重量级依赖
@@ -42,4 +43,4 @@ EXPOSE 8000
 
 # 生产使用单 worker 避免重复加载大型模型
 # 使用 Railway/容器平台提供的 PORT 环境变量，如果未提供则回退到 8000
-CMD ["sh", "-c", "gunicorn server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --workers 1 --log-level info"]
+CMD ["sh", "-c", "gunicorn backend.server:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000} --workers 1 --log-level info"]
