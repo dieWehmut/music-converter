@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick, toRaw, markRaw } from 'vue'
 import { getStyles, extractFeatures } from '../api/emotion'
 import { convertAudio } from '../api/upload'
 import AudioPlayer from '../components/AudioPlayer.vue'
@@ -16,6 +16,14 @@ const globalError = ref('')
 // IndexedDB helpers for caching uploads across refresh
 const DB_NAME = 'music-converter-db'
 const STORE_NAME = 'uploads'
+
+function serializeTasksForStorage(tasks) {
+  return tasks.map(t => {
+    const raw = toRaw(t)
+    const { active, resultUrl, ...rest } = raw || {}
+    return rest
+  })
+}
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -39,6 +47,27 @@ async function saveUpload(record) {
     const req = store.put(record)
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
+  })
+}
+
+async function updateUpload(id, changes) {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const getReq = store.get(id)
+    getReq.onsuccess = () => {
+      const data = getReq.result
+      if (!data) {
+        resolve() // nothing to update
+        return
+      }
+      const updated = { ...data, ...changes }
+      const putReq = store.put(updated)
+      putReq.onsuccess = () => resolve(putReq.result)
+      putReq.onerror = () => reject(putReq.error)
+    }
+    getReq.onerror = () => reject(getReq.error)
   })
 }
 
@@ -69,20 +98,54 @@ onMounted(async () => {
   try {
     const cached = await getAllUploads()
     for (const rec of cached) {
-      // rec: { id, name, blob, selectedStyle, features }
-      const item = {
-        id: rec.id,
-        file: rec.blob,
-        name: rec.name,
-        localUrl: URL.createObjectURL(rec.blob),
-        selectedStyle: rec.selectedStyle || '',
-        features: rec.features || null,
-        extracting: false,
-        converting: false,
-        resultUrl: '',
-        error: ''
-      }
-      files.value.push(item)
+        // rec: { id, name, blob, selectedStyle, features, tasks, extracting }
+        const item = {
+          id: rec.id,
+          file: rec.blob,
+          name: rec.name,
+          localUrl: (rec.blob instanceof Blob) ? URL.createObjectURL(rec.blob) : '',
+          selectedStyle: rec.selectedStyle || '',
+          features: rec.features || null,
+          extracting: !!rec.extracting,
+          converting: false, // always false on load, we don't auto-restart
+          tasks: Array.isArray(rec.tasks) ? rec.tasks.map(t => {
+            let rUrl = ''
+            if (t.resultBlob instanceof Blob) {
+                try { rUrl = URL.createObjectURL(t.resultBlob) } catch(e) { console.warn('bad blob', e) }
+            }
+            return {
+                ...t,
+                resultUrl: rUrl,
+              status: t.status,
+              active: false
+            }
+          }) : [],
+          error: ''
+        }
+        // Migrate old single result to tasks if exists
+        if (rec.resultBlob && item.tasks.length === 0) {
+           let rUrl = ''
+           if (rec.resultBlob instanceof Blob) {
+              try { rUrl = URL.createObjectURL(rec.resultBlob) } catch(e){}
+           }
+           item.tasks.push({
+             id: Date.now().toString(36),
+             style: rec.selectedStyle || 'unknown',
+             status: 'success',
+             resultBlob: rec.resultBlob,
+             resultUrl: rUrl,
+             error: '',
+             active: false
+           })
+        }
+
+        files.value.push(item)
+        // if extraction was in progress before refresh and features are not present, restart it
+        if (item.extracting && !item.features) {
+          // schedule next tick to avoid blocking mount
+          setTimeout(() => doExtractFor(item), 50)
+        }
+
     }
   } catch (e) {
     console.warn('no cached uploads or indexeddb not available', e)
@@ -107,19 +170,19 @@ onMounted(async () => {
 function makeItem(file) {
   return {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,8),
-    file,
+    file: markRaw(file),
     name: file.name,
     localUrl: URL.createObjectURL(file),
-    selectedStyle: '',
+    selectedStyle: selectedStyle.value || (styles.value.length ? styles.value[0] : ''),
     features: null,
     extracting: false,
     converting: false,
-    resultUrl: '',
+    tasks: [],
     error: ''
   }
 }
 
-function onFilesSelected(arr) {
+async function onFilesSelected(arr) {
   // arr can be an array of File or a single File (backcompat)
   let list = []
   if (!arr) return
@@ -128,16 +191,37 @@ function onFilesSelected(arr) {
   else return
 
   for (const f of list) {
-    const item = makeItem(f)
-    files.value.push(item)
-    // start extracting for each
-    doExtractFor(item)
-    // persist raw upload to IndexedDB
+    const rawItem = makeItem(f)
+    files.value.push(rawItem)
+    // use the reactive item from the array so changes trigger updates
+    const item = files.value[files.value.length - 1]
+
+    // mark as extracting and persist immediately so refresh shows state
+    item.extracting = true
     try {
-      saveUpload({ id: item.id, name: item.name, blob: item.file, selectedStyle: item.selectedStyle || '', features: null })
+      await saveUpload({ 
+        id: item.id, 
+        name: item.name, 
+        blob: item.file, 
+        selectedStyle: item.selectedStyle || '', 
+        features: null, 
+        extracting: true, 
+        tasks: [] 
+      })
     } catch (e) {
       console.warn('saveUpload failed', e)
     }
+
+    // start extracting for each
+    doExtractFor(item)
+  }
+}
+
+function onStyleChange(item) {
+  try {
+    updateUpload(item.id, { selectedStyle: item.selectedStyle })
+  } catch (e) {
+    console.warn('updateUpload style failed', e)
   }
 }
 
@@ -145,39 +229,129 @@ async function doExtractFor(item) {
   item.error = ''
   item.extracting = true
   item.features = null
+  // persist extracting state so refresh shows it
+  try { await updateUpload(item.id, { extracting: true }) } catch (e) {}
   try {
     item.features = await extractFeatures(item.file)
-    // save features to cache
-    try { await saveUpload({ id: item.id, name: item.name, blob: item.file, selectedStyle: item.selectedStyle || '', features: item.features }) } catch(e){}
+    // immediately clear extracting so UI updates before DB write
+    item.extracting = false
+    await nextTick()
+    // save features to cache and clear extracting
+    try { await updateUpload(item.id, { features: item.features, extracting: false }) } catch(e){}
   } catch (e) {
     console.error(e)
     item.error = '提取特征失败：' + (e.message || e)
+    try { await updateUpload(item.id, { extracting: false }) } catch(e){}
   } finally {
     item.extracting = false
   }
 }
 
-async function onConvertItem(item) {
-  item.error = ''
-  if (!item || !item.file) return (item.error = '无有效音频')
-  item.converting = true
+async function runTask(item, taskProxy) {
+  taskProxy.active = true
   try {
-    const blob = await convertAudio(item.file, item.selectedStyle || selectedStyle.value)
-    if (item.resultUrl) try { URL.revokeObjectURL(item.resultUrl) } catch(e){}
-    item.resultUrl = URL.createObjectURL(blob)
+    console.log('Starting conversion for', item.name, 'with style', taskProxy.style)
+    
+    const blob = await convertAudio(item.file, taskProxy.style)
+    console.log('Conversion success, blob size:', blob.size)
+    
+    // Re-find the task in the reactive array to ensure we update the live object
+    const liveItem = files.value.find(f => f.id === item.id)
+    if (liveItem) {
+        const liveTask = liveItem.tasks.find(t => t.id === taskProxy.id)
+        if (liveTask) {
+            liveTask.status = 'success'
+            liveTask.resultBlob = markRaw(blob)
+            liveTask.resultUrl = URL.createObjectURL(blob)
+            liveTask.error = ''
+        }
+    }
+
+    // Save result to cache
+    try {
+      await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) })
+    } catch (e) {
+      console.warn('Failed to save conversion result to cache', e)
+    }
   } catch (e) {
-    console.error(e)
-    item.error = '转换失败：' + (e.message || e)
+    console.error('Conversion failed', e)
+    // Re-find task for error update too
+    const liveItem = files.value.find(f => f.id === item.id)
+    if (liveItem) {
+        const liveTask = liveItem.tasks.find(t => t.id === taskProxy.id)
+        if (liveTask) {
+            liveTask.status = 'error'
+            liveTask.error = '转换失败：' + (e.message || e)
+        }
+    }
+    
+    try { 
+      await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) }) 
+    } catch(e){}
   } finally {
-    item.converting = false
+    taskProxy.active = false
   }
+}
+
+async function onConvertItem(item) {
+  // Ensure we are working with the reactive object from the list
+  const reactiveItem = files.value.find(f => f.id === item.id) || item
+  
+  reactiveItem.error = ''
+  if (!reactiveItem.file) return (reactiveItem.error = '无有效音频')
+  
+  const styleToUse = reactiveItem.selectedStyle || selectedStyle.value
+
+  // If there is a stored converting task that isn't actively running yet (e.g. after refresh), resume it
+  const resumableTask = reactiveItem.tasks.find(t => t.status === 'converting' && !t.active)
+  if (resumableTask) {
+    resumableTask.error = ''
+    await runTask(reactiveItem, resumableTask)
+    return
+  }
+  
+  // Create new task
+  const newTaskRaw = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+    style: styleToUse,
+    status: 'converting',
+    resultUrl: '',
+    resultBlob: null,
+    error: '',
+    active: true
+  }
+  const newLength = reactiveItem.tasks.push(newTaskRaw)
+  const taskProxy = reactiveItem.tasks[newLength - 1]
+  
+  // Persist initial task state
+  try { await updateUpload(reactiveItem.id, { tasks: serializeTasksForStorage(reactiveItem.tasks) }) } catch(e){}
+
+  await runTask(reactiveItem, taskProxy)
+}
+
+async function retryTask(item, task) {
+  const reactiveItem = files.value.find(f => f.id === item.id) || item
+  const taskProxy = reactiveItem.tasks.find(t => t.id === task.id)
+  if (!taskProxy) return
+
+  taskProxy.status = 'converting'
+  taskProxy.error = ''
+  
+  // Persist state change
+  try { await updateUpload(reactiveItem.id, { tasks: serializeTasksForStorage(reactiveItem.tasks) }) } catch(e){}
+
+  await runTask(reactiveItem, taskProxy)
 }
 
 function removeItem(index) {
   const it = files.value[index]
   if (!it) return
   try { if (it.localUrl) URL.revokeObjectURL(it.localUrl) } catch(e){}
-  try { if (it.resultUrl) URL.revokeObjectURL(it.resultUrl) } catch(e){}
+  if (it.tasks) {
+    for (const t of it.tasks) {
+      try { if (t.resultUrl) URL.revokeObjectURL(t.resultUrl) } catch(e){}
+    }
+  }
   // remove from cache as well
   try { deleteUploadById(it.id).catch(()=>{}) } catch(e){}
   files.value.splice(index,1)
@@ -217,12 +391,14 @@ function removeItem(index) {
                 <div class="file-index">{{ idx + 1 }}</div>
                 <div style="display:flex;align-items:center;gap:12px">
                   <div class="file-title">{{ item.name }}</div>
-                  <TargetEmotionSelector v-model="item.selectedStyle" :styles="styles" />
+                  <TargetEmotionSelector v-model="item.selectedStyle" :styles="styles" @update:modelValue="onStyleChange(item)" />
                 </div>
               </div>
               <div class="file-actions">
                 <button class="btn small" @click="removeItem(idx)">删除</button>
-                <button class="btn small primary" @click="onConvertItem(item)" :disabled="item.converting || item.extracting">{{ item.converting ? '转换中…' : '转换' }}</button>
+                <button class="btn small primary" @click="onConvertItem(item)" :disabled="item.extracting || item.tasks.some(t => t.active)">
+                  {{ item.tasks.some(t => t.active) ? `转换中... ${item.tasks.filter(t => t.status === 'success').length}/${item.tasks.length}` : '转换' }}
+                </button>
               </div>
             </div>
 
@@ -235,10 +411,25 @@ function removeItem(index) {
                 <div v-if="item.extracting">自动提取中…</div>
                 <EmotionResult v-if="item.features" :features="item.features" />
                 <div v-if="item.error" class="error">{{ item.error }}</div>
-                <div v-if="item.resultUrl" class="result">
-                  <h4>转换结果</h4>
-                  <audio :src="item.resultUrl" controls></audio>
-                  <a class="download-btn" :href="item.resultUrl" :download="item.name + '.converted.wav'">下载</a>
+                
+                <div v-if="item.tasks && item.tasks.length" class="tasks-list">
+                  <h4>转换任务列表</h4>
+                  <div v-for="task in item.tasks" :key="task.id" class="task-item">
+                    <div class="task-header">
+                      <span class="task-style">风格: {{ task.style }}</span>
+                      <span class="task-status" :class="task.status">
+                        {{ task.status === 'converting' ? '转换中...' : task.status === 'success' ? '成功' : '失败' }}
+                      </span>
+                      <div v-if="task.status === 'error'" class="task-actions" style="margin-left:auto">
+                        <button class="btn small" @click="retryTask(item, task)">重试</button>
+                      </div>
+                    </div>
+                    <div v-if="task.status === 'success'" class="task-result">
+                      <audio :src="task.resultUrl" controls></audio>
+                      <a class="download-btn" :href="task.resultUrl" :download="item.name + '.' + task.style + '.wav'">下载</a>
+                    </div>
+                    <div v-if="task.status === 'error'" class="error small">{{ task.error }}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -296,4 +487,13 @@ select{padding:8px;border-radius:8px;border:1px solid #e6eef8;background:#fbfdff
 .result audio{width:100%}
 .styles-list{display:flex;flex-wrap:wrap;gap:8px}
 .style-pill{display:inline-block;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,#eef2ff,#f0fdf4);border:1px solid rgba(15,23,42,0.04);font-weight:600}
+.tasks-list{margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px}
+.task-item{background:#f8fafc;border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid #e2e8f0}
+.task-header{display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;font-weight:600}
+.task-status.converting{color:#2563eb}
+.task-status.success{color:#16a34a}
+.task-status.error{color:#dc2626}
+.task-result{display:flex;align-items:center;gap:12px}
+.task-result audio{height:40px;flex:1}
+.error.small{font-size:12px;margin-top:4px}
 </style>

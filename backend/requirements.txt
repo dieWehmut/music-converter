@@ -1,0 +1,31 @@
+# GPU 版本 PyTorch
+torch
+torchvision
+torchaudio
+
+# Web 后端
+fastapi
+uvicorn[standard]
+
+# 科学计算
+numpy
+scipy
+librosa
+soundfile
+audioread
+joblib
+python-multipart
+requests
+
+# TensorFlow
+tensorflow
+tensorflow-hub
+
+# HuggingFace
+transformers
+safetensors
+tokenizers
+huggingface-hub
+
+# 其他
+xgboost
