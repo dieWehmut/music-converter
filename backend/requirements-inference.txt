@@ -1,8 +1,0 @@
-xgboost==3.0.0
-tensorflow==2.12.0
-tensorflow-hub
-
-# Note: This file is intended for a minimal inference image that needs
-# only the packages required to run feature extraction and style/emotion
-# classifiers (YAMNet + xgboost). If you need full generation (torch,
-# transformers), use `requirements.txt` or set INSTALL_HEAVY=true.
