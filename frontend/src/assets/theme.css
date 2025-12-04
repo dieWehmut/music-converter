@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap');
+
+:root {
+  --font-sans: 'Space Grotesk', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --color-page: linear-gradient(180deg, #f8fbff 0%, #edf2ff 50%, #f6f7fb 100%);
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6fb;
+  --color-card-border: rgba(15, 23, 42, 0.08);
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+  --color-primary: #1d4ed8;
+  --color-primary-dark: #153b9c;
+  --color-accent: #f97316;
+  --color-danger: #dc2626;
+  --color-outline: #e2e8f0;
+  --shadow-soft: 0 20px 60px rgba(15, 23, 42, 0.08);
+  --shadow-inner: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-full: 999px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-image: var(--color-page);
+  color: var(--color-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 12px 25px rgba(15, 23, 42, 0.1);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 28px rgba(15, 23, 42, 0.16);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn--primary {
+  background: linear-gradient(120deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn--ghost {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.btn--danger {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.2);
+  color: var(--color-danger);
+}
+
+.btn--pill {
+  border-radius: var(--radius-full);
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.16);
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.btn--small {
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.btn--xs {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.pill-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 18px;
+  border-radius: var(--radius-full);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.pill-control--primary {
+  background: linear-gradient(120deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: none;
+}
+
+.pill-control--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
+}
+
+.pill-control--neutral {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+.pill-control--neutral:hover {
+  border-color: rgba(15, 23, 42, 0.2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: 13px;
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.surface-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-soft);
+}
+
+input[type='file'] {
+  font-size: 0;
+}

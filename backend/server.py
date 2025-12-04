@@ -30,7 +30,7 @@ app.add_middleware(
         "https://music-converter-production.up.railway.app",
         "https://music-converter-test.vercel.app",
         "https://music-converter.hc-dsw-nexus.me",
-        "https://diewehmut-test.hf.space",
+        "https://diewehmut-music-converter.hf.space",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -129,20 +129,43 @@ def _save_upload_to_temp(upload: UploadFile):
 @app.post("/api/features")
 async def extract_features(file: UploadFile = File(...)):
     """上传音频，返回分析结果（style/emotion/probabilities）"""
-    # Dev mode: return mock features so frontend can integrate without heavy deps
+    # DEV_MODE: 优先尝试真实分析，若依赖不可用则回退到 mock
     if DEV_MODE:
-        mock = {
-            "style": "rock",
-            "emotion": "happy",
-            "style_prob": {"rock": 0.7, "pop": 0.15, "jazz": 0.05, "electronic": 0.05, "classical": 0.05},
-            "emotion_prob": {"happy": 0.6, "sad": 0.1, "angry": 0.05, "funny": 0.05, "scary": 0.05, "tender": 0.15}
-        }
-        # include uploaded filename so frontend can confirm the server received the file
+        tmp_path = None
         try:
-            mock["uploaded_filename"] = file.filename
-        except Exception:
-            pass
-        return JSONResponse(content=mock)
+            tmp_path = _save_upload_to_temp(file)
+            try:
+                from backend.inference.analyze import analyzer
+            except ImportError as ie:
+                LOG.warning("extract_features analyzer import failed (dev fallback): %s", ie)
+                mock = {
+                    "style": "rock",
+                    "emotion": "happy",
+                    "style_prob": {"rock": 0.7, "pop": 0.15, "jazz": 0.05, "electronic": 0.05, "classical": 0.05},
+                    "emotion_prob": {"happy": 0.6, "sad": 0.1, "angry": 0.05, "funny": 0.05, "scary": 0.05, "tender": 0.15}
+                }
+                try:
+                    mock["uploaded_filename"] = file.filename
+                except Exception:
+                    pass
+                return JSONResponse(content=mock)
+
+            # 尝试真实分析
+            result = await run_in_threadpool(analyzer.analyze, tmp_path)
+            if isinstance(result, dict) and result.get("error"):
+                raise RuntimeError(result.get("error"))
+            return JSONResponse(content=result)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            LOG.exception("extract_features failed (dev real attempt)")
+            raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            try:
+                if tmp_path:
+                    Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
 
     tmp_path = None
     try:

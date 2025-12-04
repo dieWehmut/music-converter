@@ -10,13 +10,14 @@
 
 <style scoped>
 .waveform-compare {
-	min-height: 60px;
-	background: #f3f6fa;
-	border-radius: 8px;
-	margin: 12px 0;
+	min-height: 72px;
+	background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08));
+	border-radius: var(--radius-md);
+	margin: 16px 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: #64748b;
+	color: var(--color-text-muted);
+	border: 1px dashed rgba(99, 102, 241, 0.4);
 }
 </style>

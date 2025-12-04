@@ -23,6 +23,20 @@ function onClick(e) {
 </template>
 
 <style scoped>
-.progress{width:100%;height:10px;background:#e5e7eb;border-radius:6px;cursor:pointer}
-.bar{height:100%;background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:6px}
+.progress {
+  width: 100%;
+  height: 12px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  background: linear-gradient(120deg, #60a5fa, #2563eb);
+  border-radius: inherit;
+  box-shadow: var(--shadow-inner);
+}
 </style>
