@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="320" viewBox="0 0 1000 320">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#666" />
+    </marker>
+    <style>
+      .box { fill:#ffffff; stroke:#2b6cb0; stroke-width:2; rx:8; }
+      .title { font: 600 18px/1.1 'Noto Sans SC', Arial, sans-serif; fill:#0b3b66; }
+      .item { font: 14px/1.2 'Noto Sans SC', Arial, sans-serif; fill:#1f2937; }
+      .arrow-label { font: 13px 'Noto Sans SC', Arial, sans-serif; fill:#475569; }
+    </style>
+  </defs>
+
+  <!-- Left box -->
+  <rect class="box" x="40" y="50" width="300" height="160" />
+  <text class="title" x="200" y="82" text-anchor="middle">Vue 前端 (Vite)</text>
+  <text class="item" x="70" y="112">• 上传音频 / 选择目标情绪</text>
+  <text class="item" x="70" y="136">• 渲染特征 / 任务进度</text>
+  <text class="item" x="70" y="160">• 播放 / 下载结果</text>
+
+  <!-- Right box -->
+  <rect class="box" x="660" y="40" width="300" height="200" />
+  <text class="title" x="810" y="76" text-anchor="middle">FastAPI 后端 (server.py)</text>
+  <text class="item" x="680" y="110">• 特征提取 / 风格/情绪识别</text>
+  <text class="item" x="680" y="134">• 异步任务调度（转换）</text>
+  <text class="item" x="680" y="158">• 输出 WAV / 下载接口</text>
+  <text class="item" x="680" y="182">• DEV 模式：返回伪数据</text>
+
+  <!-- HTTP/JSON arrow -->
+  <line x1="360" y1="95" x2="640" y2="95" stroke="#7b8794" stroke-width="3" marker-end="url(#arrow)" />
+  <text class="arrow-label" x="500" y="82" text-anchor="middle">HTTP / JSON</text>
+
+  <!-- Audio download arrow (left) -->
+  <line x1="640" y1="170" x2="360" y2="170" stroke="#7b8794" stroke-width="3" marker-end="url(#arrow)" />
+  <text class="arrow-label" x="500" y="188" text-anchor="middle">音频下载</text>
+
+  <!-- Surrounding title -->
+  <text class="title" x="500" y="28" text-anchor="middle">架构概览</text>
+</svg>

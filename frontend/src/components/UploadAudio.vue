@@ -1,6 +1,6 @@
 <template>
   <div>
-    <button type="button" :class="['upload-btn', $attrs.class]" @click="openFileDialog">
+		<button type="button" :class="['pill-control', 'pill-control--primary', 'upload-btn', $attrs.class]" @click="openFileDialog">
       <slot>上传音频</slot>
     </button>
     <input ref="fileInput" class="visually-hidden" type="file" accept="audio/*" multiple @change="onFileChange" />
@@ -30,24 +30,14 @@ function onFileChange(e) {
 	emit('file-selected', first)
 	emit('file', first)
 	// new event for multiple files
-	emit('files', arr)
+	  emit('files', arr)
 }
 </script>
 
 <style scoped>
-.upload-btn {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 12px;
-	border: 1px solid #ccc;
-	background: #fff;
-	border-radius: 6px;
-	cursor: pointer;
-}
-.upload-btn:hover {
-	background: #f5f5f5;
-}
+	.upload-btn {
+		box-shadow: none;
+	}
 .visually-hidden {
 	position: absolute !important;
 	height: 1px; width: 1px;
