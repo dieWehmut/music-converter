@@ -1,15 +1,22 @@
 <script setup>
-import { ref, onMounted, nextTick, toRaw, markRaw } from 'vue'
+import { ref, onMounted, nextTick, toRaw, markRaw, watch, onUnmounted } from 'vue'
+import { marked } from 'marked'
 import { getStyles, extractFeatures } from '../api/emotion'
 import { convertAudio } from '../api/upload'
 import UploadAudio from '../components/UploadAudio.vue'
 import TargetEmotionSelector from '../components/TargetEmotionSelector.vue'
 import EmotionResult from '../components/EmotionResult.vue'
+import readmeRaw from '../../../README.md?raw'
 
 const files = ref([])
 const styles = ref([])
 const selectedStyle = ref('')
 const globalError = ref('')
+const activeId = ref('')
+const readmeHtml = ref('')
+const docHeaders = ref([])
+
+defineExpose({ files, activeId, docHeaders })
 
 const DB_NAME = 'music-converter-db'
 const STORE_NAME = 'uploads'
@@ -98,7 +105,69 @@ async function deleteUploadById(id) {
   })
 }
 
+let observer = null
+function observeElements() {
+  if (observer) observer.disconnect()
+  
+  observer = new IntersectionObserver((entries) => {
+    // We want the element that is most visible or closest to the top
+    // But simple intersection with a top margin works well for "scrolled to"
+    const visible = entries.find(entry => entry.isIntersecting)
+    if (visible) {
+      const fid = visible.target.dataset.fileId
+      const tid = visible.target.dataset.taskId
+      const sid = visible.target.dataset.sectionId
+      const did = visible.target.dataset.docHeader
+      if (tid) activeId.value = tid
+      else if (fid) activeId.value = fid
+      else if (did) activeId.value = did
+      else if (sid) activeId.value = sid
+    }
+  }, {
+    rootMargin: '-10% 0px -80% 0px', 
+    threshold: 0
+  })
+
+  const targets = document.querySelectorAll('[data-file-id], [data-task-id], [data-section-id], [data-doc-header]')
+  targets.forEach(el => observer.observe(el))
+}
+
+watch(files, async () => {
+  await nextTick()
+  observeElements()
+}, { deep: true })
+
+onUnmounted(() => {
+  if (observer) observer.disconnect()
+})
+
 onMounted(async () => {
+  const toc = []
+  const counters = [0, 0, 0, 0, 0, 0]
+  
+  const renderer = {
+    heading({ text, depth, raw }) {
+      const id = raw.toLowerCase().trim().replace(/[\s]+/g, '-').replace(/[^\w\u4e00-\u9fa5-]/g, '')
+      
+      if (depth >= 1 && depth <= 6) {
+        counters[depth - 1]++
+        for (let i = depth; i < 6; i++) counters[i] = 0
+        
+        let number = '3'
+        for (let i = 0; i < depth; i++) {
+          number += '.' + counters[i]
+        }
+        toc.push({ id, text, level: depth, number })
+      }
+      
+      return `<h${depth} id="${id}" data-doc-header="${id}">${text}</h${depth}>`
+    }
+  }
+  
+  marked.use({ renderer })
+  readmeHtml.value = marked.parse(readmeRaw)
+  docHeaders.value = toc
+
   // load cached uploads first
   try {
     const cached = await getAllUploads()
@@ -186,6 +255,9 @@ onMounted(async () => {
     console.warn('failed to load styles', e)
     globalError.value = '加载风格失败：' + (e.message || e)
   }
+  
+  await nextTick()
+  observeElements()
 })
 
 function makeItem(file) {
@@ -465,29 +537,30 @@ function removeItem(index) {
     <div class="container">
       <h1>Music Converter</h1>
 
-      <div class="styles-debug card">
+      <div class="styles-debug card" data-section-id="dashboard">
         <h3 class="styles-title">可用风格（styles）</h3>
         <div v-if="styles.length" class="styles-list">
           <span v-for="s in styles" :key="s" class="style-pill">{{ s }}</span>
         </div>
         <div v-else-if="globalError" class="error">加载风格失败：{{ globalError }}</div>
         <div v-else>加载中…</div>
+
+        <div class="dashboard-actions">
+          <UploadAudio @files="onFilesSelected">上传音频</UploadAudio>
+          <div class="pill-control pill-control--neutral upload-count" v-if="files.length">已上传 {{ files.length }}</div>
+        </div>
       </div>
 
       <section class="card">
-        <div class="center">
-          <div class="row buttons-row">
-            <UploadAudio @files="onFilesSelected">上传音频</UploadAudio>
-            <div class="pill-control pill-control--neutral upload-count" v-if="files.length">已上传 {{ files.length }}</div>
-
-            <div class="spacer"></div>
-          </div>
-        </div>
-
         <p v-if="globalError" class="error">{{ globalError }}</p>
 
-        <div class="file-list">
-          <div v-for="(item, idx) in files" :key="item.id" class="file-item card">
+        <div class="file-list" data-section-id="uploads">
+          <div
+            v-for="(item, idx) in files"
+            :key="item.id"
+            class="file-item card"
+            :data-file-id="item.id"
+          >
             <div class="file-header">
                 <div class="file-left">
                   <div class="file-index">{{ idx + 1 }}</div>
@@ -516,7 +589,12 @@ function removeItem(index) {
                 
                 <div v-if="item.tasks && item.tasks.length" class="tasks-list">
                   <h4>转换任务列表</h4>
-                  <div v-for="(task, tIdx) in item.tasks" :key="task.id" class="task-item">
+                  <div 
+                    v-for="(task, tIdx) in item.tasks" 
+                    :key="task.id" 
+                    class="task-item"
+                    :data-task-id="task.id"
+                  >
                       <div class="task-header">
                         <span class="task-index">({{ tIdx + 1 }})</span>
                         <span class="task-style">目标风格: {{ task.style }}</span>
@@ -560,7 +638,9 @@ function removeItem(index) {
         </div>
       </section>
 
-      
+      <section class="card readme-section" v-if="readmeHtml" data-section-id="readme">
+        <div class="markdown-body" v-html="readmeHtml"></div>
+      </section>
     </div>
   </div>
 </template>
@@ -862,5 +942,84 @@ h1 {
 
 .styles-debug h3 {
   margin: 0;
+}
+
+.dashboard-actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+.readme-section {
+  margin-top: 24px;
+}
+
+.markdown-body {
+  line-height: 1.6;
+  color: #334155;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3) {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-body :deep(h1) {
+  font-size: 2em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body :deep(h2) {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body :deep(p) {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-body :deep(code) {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: 6px;
+}
+
+.markdown-body :deep(pre) {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+}
+
+.markdown-body :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-body :deep(img) {
+  max-width: 100%;
+  box-sizing: content-box;
+  background-color: #fff;
+}
+
+[data-section-id],
+[data-file-id],
+[data-task-id],
+[data-doc-header] {
+  scroll-margin-top: 24px;
 }
 </style>
