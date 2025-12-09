@@ -17,7 +17,7 @@ const STORE_NAME = 'uploads'
 function serializeTasksForStorage(tasks) {
   return tasks.map(task => {
     const raw = toRaw(task)
-    const { active, resultUrl, ...rest } = raw || {}
+    const { active, resultUrl, showAnalysis, analysisLoading, analysisHover, ...rest } = raw || {}
     return rest
   })
 }
@@ -116,18 +116,22 @@ onMounted(async () => {
         tasks: Array.isArray(record.tasks)
           ? record.tasks.map(task => {
               let resultUrl = ''
-              if (task.resultBlob instanceof Blob) {
-                try {
+              try {
+                if (task.resultBlob instanceof Blob) {
                   resultUrl = URL.createObjectURL(task.resultBlob)
-                } catch (error) {
-                  console.warn('bad blob', error)
                 }
+              } catch (error) {
+                console.warn('bad blob', error)
               }
               return {
                 ...task,
                 resultUrl,
                 status: task.status,
-                active: false
+                active: false,
+                analysis: task.analysis || null,
+                showAnalysis: false,
+                analysisLoading: false,
+                analysisHover: false
               }
             })
           : [],
@@ -150,7 +154,11 @@ onMounted(async () => {
           resultBlob: record.resultBlob,
           resultUrl,
           error: '',
-          active: false
+          active: false,
+          analysis: record.analysis || null,
+          showAnalysis: false,
+          analysisLoading: false,
+          analysisHover: false
         })
       }
 
@@ -262,6 +270,52 @@ async function doExtractFor(item) {
   }
 }
 
+async function toggleTaskAnalysis(item, task) {
+  task.showAnalysis = !task.showAnalysis
+  if (!task.showAnalysis) return
+
+  if (!task.analysis && task.resultBlob) {
+    task.analysisLoading = true
+    try {
+      const features = await extractFeatures(task.resultBlob)
+      task.analysis = features
+      try {
+        await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) })
+      } catch (e) {}
+    } catch (e) {
+      console.error('分析转换后音频失败', e)
+      task.analysis = null
+      task.error = '分析失败：' + (e.message || e)
+    } finally {
+      task.analysisLoading = false
+    }
+  }
+}
+
+// 当用户将鼠标悬浮在“查看分析”区域时显示预览，并在必要时触发分析
+async function handleAnalysisHoverEnter(item, task) {
+  task.analysisHover = true
+  if (!task.analysis && task.resultBlob && !task.analysisLoading) {
+    task.analysisLoading = true
+    try {
+      const features = await extractFeatures(task.resultBlob)
+      task.analysis = features
+      try {
+        await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) })
+      } catch (e) {}
+    } catch (e) {
+      console.error('Hover 分析失败', e)
+      task.analysis = null
+    } finally {
+      task.analysisLoading = false
+    }
+  }
+}
+
+function handleAnalysisHoverLeave(task) {
+  task.analysisHover = false
+}
+
 async function runTask(item, taskProxy) {
   taskProxy.active = true
   try {
@@ -281,10 +335,38 @@ async function runTask(item, taskProxy) {
       }
     }
 
+    // persist immediate conversion result
     try {
       await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) })
     } catch (e) {
       console.warn('Failed to save conversion result to cache', e)
+    }
+
+    // 自动对转换后的音频进行风格/情绪分析（懒加载时也可触发）
+    try {
+      const liveItemAfter = files.value.find(f => f.id === item.id)
+      const liveTaskAfter = liveItemAfter && liveItemAfter.tasks.find(t => t.id === taskProxy.id)
+      if (liveTaskAfter && liveTaskAfter.resultBlob) {
+        liveTaskAfter.analysisLoading = true
+        try {
+          const analysis = await extractFeatures(liveTaskAfter.resultBlob)
+          liveTaskAfter.analysis = analysis
+        } catch (ae) {
+          console.error('自动分析转换后音频失败', ae)
+          liveTaskAfter.analysis = null
+          // keep task.error as-is; do not mark conversion as failed
+        } finally {
+          liveTaskAfter.analysisLoading = false
+        }
+
+        try {
+          await updateUpload(item.id, { tasks: serializeTasksForStorage(item.tasks) })
+        } catch (e) {
+          console.warn('Failed to save analysis result to cache', e)
+        }
+      }
+    } catch (err) {
+      console.error('保存自动分析结果时出错', err)
     }
   } catch (e) {
     console.error('Conversion failed', e)
@@ -327,6 +409,10 @@ async function onConvertItem(item) {
     resultUrl: '',
     resultBlob: null,
     error: '',
+    analysis: null,
+    showAnalysis: false,
+    analysisLoading: false,
+    analysisHover: false,
     active: true
   }
   const newLength = reactiveItem.tasks.push(newTaskRaw)
@@ -430,21 +516,42 @@ function removeItem(index) {
                 
                 <div v-if="item.tasks && item.tasks.length" class="tasks-list">
                   <h4>转换任务列表</h4>
-                  <div v-for="task in item.tasks" :key="task.id" class="task-item">
-                    <div class="task-header">
-                      <span class="task-style">目标风格: {{ task.style }}</span>
-                      <span class="task-status" :class="task.status">
-                        {{ task.status === 'converting' ? '转换中...' : task.status === 'success' ? '成功' : '失败' }}
-                      </span>
-                      <div v-if="task.status === 'error'" class="task-actions push-right">
-                        <button class="btn btn--primary btn--xs" @click="retryTask(item, task)">重试</button>
+                  <div v-for="(task, tIdx) in item.tasks" :key="task.id" class="task-item">
+                      <div class="task-header">
+                        <span class="task-index">({{ tIdx + 1 }})</span>
+                        <span class="task-style">目标风格: {{ task.style }}</span>
+                        <span class="task-status" :class="task.status">
+                          {{ task.status === 'converting' ? '转换中...' : task.status === 'success' ? '成功' : '失败' }}
+                        </span>
+                        <div v-if="task.status === 'error'" class="task-actions push-right">
+                          <button class="btn btn--primary btn--xs" @click="retryTask(item, task)">重试</button>
+                        </div>
                       </div>
-                    </div>
                     <div v-if="task.status === 'success'" class="task-result">
                       <audio :src="task.resultUrl" controls></audio>
                       <a class="btn btn--ghost btn--xs download-btn" :href="task.resultUrl" :download="item.name + '.' + task.style + '.wav'">下载</a>
+
+                      <div class="analysis-hover-wrap" @mouseenter="handleAnalysisHoverEnter(item, task)" @mouseleave="handleAnalysisHoverLeave(task)">
+                        <button class="btn btn--ghost btn--xs analysis-toggle" @click="toggleTaskAnalysis(item, task)">
+                          <span v-if="task.analysisLoading">分析中…</span>
+                          <span v-else>{{ task.showAnalysis ? '收起分析' : '查看分析' }}</span>
+                        </button>
+
+                        <div v-if="task.analysisHover" class="analysis-preview">
+                          <div v-if="task.analysis">
+                            <EmotionResult :features="task.analysis" />
+                          </div>
+                          <div v-else-if="task.analysisLoading">正在分析…</div>
+                          <div v-else class="error small">暂无分析结果</div>
+                        </div>
+                      </div>
                     </div>
-                    <div v-if="task.status === 'error'" class="error small">{{ task.error }}</div>
+                        <div v-if="task.status === 'error'" class="error small">{{ task.error }}</div>
+                        <div v-if="task.showAnalysis" class="analysis-panel">
+                          <EmotionResult v-if="task.analysis" :features="task.analysis" />
+                          <div v-else-if="task.analysisLoading">正在分析…</div>
+                          <div v-else-if="!task.resultBlob" class="error small">没有可分析的音频</div>
+                        </div>
                   </div>
                 </div>
               </div>
@@ -632,6 +739,7 @@ h1 {
   border-radius: var(--radius-md);
   padding: 12px;
   border: 1px solid rgba(15, 23, 42, 0.06);
+  position: relative;
 }
 
 .task-header {
@@ -647,6 +755,12 @@ h1 {
 
 .task-style {
   color: var(--color-text-muted);
+}
+
+.task-index {
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-right: 8px;
 }
 
 .task-status {
@@ -684,6 +798,57 @@ h1 {
 
 .download-btn {
   text-decoration: none;
+}
+
+.analysis-toggle {
+  margin-left: 8px;
+}
+
+.analysis-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(15,23,42,0.06);
+}
+
+.analysis-hover-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.analysis-preview {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  transform: translateY(-8px);
+  width: 360px;
+  max-width: 80vw;
+  z-index: 40;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 30px rgba(2,6,23,0.12);
+  padding: 12px;
+}
+
+/* Override EmotionResult layout inside the hover preview to be horizontal */
+.analysis-preview :deep(.chart-grid) {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+}
+
+.analysis-preview :deep(.chart-figure) {
+  width: 120px !important;
+  height: 120px !important;
+  box-shadow: inset 0 0 0 8px #fff !important;
+}
+
+.analysis-preview :deep(.chart-center) {
+  width: 52px !important;
+  height: 52px !important;
+  font-size: 12px !important;
+}
+
+.analysis-preview :deep(.chart-card) {
+  padding: 10px !important;
 }
 
 .error {

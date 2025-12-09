@@ -1,21 +1,23 @@
 <template>
 	<div class="emotion-result" v-if="features">
-		<div class="header">
-			<div>
-				<h3>风格与情绪分布</h3>
-			</div>
-			<div class="tags">
-				<span class="tag badge">风格：{{ features.style || '未知' }}</span>
-				<span class="tag badge">情绪：{{ features.emotion || '未知' }}</span>
-				<span v-if="features.uploaded_filename" class="tag badge subtle">原文件：{{ features.uploaded_filename }}</span>
-			</div>
-		</div>
+
 
 		<div class="chart-grid">
 			<div class="chart-card" v-if="styleSegments.length">
 				<div class="chart-title">风格占比</div>
 				<div class="chart-figure" :style="{ backgroundImage: styleGradient }">
 					<div class="chart-center">Style</div>
+					<div class="chart-labels">
+						<div
+							v-for="segment in styleSegments"
+							:key="segment?.label || 'style-'+$index"
+							v-if="(segment?.percent ?? 0) >= 5"
+							class="chart-label"
+							:style="segmentLabelStyle(segment)"
+						>
+							{{ Math.round(segment?.percent ?? 0) }}%
+						</div>
+					</div>
 				</div>
 				<div class="legend">
 					<div class="legend-item" v-for="segment in styleSegments" :key="segment.label">
@@ -34,6 +36,17 @@
 				<div class="chart-title">情绪占比</div>
 				<div class="chart-figure" :style="{ backgroundImage: emotionGradient }">
 					<div class="chart-center">Emotion</div>
+					<div class="chart-labels">
+						<div
+							v-for="segment in emotionSegments"
+							:key="segment?.label || 'emotion-'+$index"
+							v-if="(segment?.percent ?? 0) >= 5"
+							class="chart-label"
+							:style="segmentLabelStyle(segment)"
+						>
+							{{ Math.round(segment?.percent ?? 0) }}%
+						</div>
+					</div>
 				</div>
 				<div class="legend">
 					<div class="legend-item" v-for="segment in emotionSegments" :key="segment.label">
@@ -89,11 +102,34 @@ function buildGradient(segments) {
 	return `conic-gradient(${stops})`
 }
 
+// 计算每个扇区中点位置，用于放置百分比标签
+function segmentLabelStyle(segment) {
+	if (!segment || typeof segment.percent !== 'number') {
+		return { transform: 'translate(-50%, -50%)' }
+	}
+	// 取扇区中点角度
+	const midAngle = (segment.start + segment.end) / 2
+	// CSS 中 0deg 在右侧，这里减去 90deg 让 0deg 指向上方，便于视觉分布
+	const rad = ((midAngle - 90) * Math.PI) / 180
+	// 标签距离圆心的半径，数值基于当前图形尺寸微调
+	const radius = 55
+	const x = Math.cos(rad) * radius
+	const y = Math.sin(rad) * radius
+
+	return {
+		transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`
+	}
+}
+
 const styleSegments = computed(() => buildSegments(props.features?.style_prob))
 const emotionSegments = computed(() => buildSegments(props.features?.emotion_prob))
 
 const styleGradient = computed(() => buildGradient(styleSegments.value))
 const emotionGradient = computed(() => buildGradient(emotionSegments.value))
+
+// 导出给模板使用
+// eslint-disable-next-line no-unused-vars
+const _segmentLabelStyle = segmentLabelStyle
 </script>
 
 <style scoped>
@@ -177,6 +213,22 @@ const emotionGradient = computed(() => buildGradient(emotionSegments.value))
 		justify-content: center;
 		position: relative;
 		box-shadow: inset 0 0 0 12px #fff;
+	}
+
+	.chart-labels {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	.chart-label {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		font-size: 11px;
+		font-weight: 600;
+		color: #0f172a;
+		text-shadow: 0 1px 2px rgba(15, 23, 42, 0.4);
 	}
 
 	.chart-center {
