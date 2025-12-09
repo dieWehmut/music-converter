@@ -23,11 +23,8 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - 前端使用 IndexedDB 缓存上传与任务状态，刷新页面也不会丢失。
 - `MC_DEV_MODE=1` 可启用 DEV 模式，快速返回伪造但稳定的数据，方便无 GPU 的前端联调。
 
-## 架构概览
+## 项目架构概览
 
-<p align="center">
-   <img src="docs/architecture.svg" alt="架构概览" width="900" />
-</p>
 
 - **前端**（`frontend/`）：核心界面 `src/views/Home.vue`，负责上传音频、渲染任务进度、展示结果。
 - **后端**（`backend/`）：`server.py` 提供 API、管理后台任务，并加载 `backend/inference/full_pipeline.py` 的 `FullMusicPipeline`。
