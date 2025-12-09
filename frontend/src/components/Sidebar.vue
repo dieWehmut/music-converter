@@ -176,6 +176,23 @@ const activeIndexDisplay = computed(() => {
   padding: 0 16px 32px;
 }
 
+.toc-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.toc-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-body::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+}
+
+.toc-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.5);
+}
+
 .toc-section {
   margin-bottom: 24px;
 }
@@ -224,20 +241,41 @@ const activeIndexDisplay = computed(() => {
 
 .toc-group {
   margin-bottom: 4px;
-  padding-left: 12px;
+  padding-left: 0;
+  margin-left: 24px;
+  border-left: 2px solid #cbd5e1;
+}
+
+.toc-children {
+  margin-left: 24px;
+  border-left: 2px solid #cbd5e1;
+  padding-left: 0;
 }
 
 .toc-row {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   color: #64748b;
   transition: all 0.15s ease;
   font-size: 15px;
   line-height: 1.5;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
+  margin-left: 12px;
+  width: calc(100% - 12px);
+}
+
+.toc-row::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 14px;
+  height: 2px;
+  background-color: #cbd5e1;
 }
 
 .toc-row:hover {
@@ -267,12 +305,13 @@ const activeIndexDisplay = computed(() => {
 
 .child-row {
   font-size: 14px;
-  padding-left: 24px;
+  padding-left: 12px;
 }
 
 .doc-row {
   font-size: 14px;
   padding-left: 12px;
+  color: #475569;
 }
 
 .doc-row.level-1 {
@@ -281,18 +320,35 @@ const activeIndexDisplay = computed(() => {
 }
 
 .doc-row.level-2 {
-  padding-left: 24px;
+  margin-left: 24px;
+  width: calc(100% - 24px);
+}
+
+.doc-row.level-2::before {
+  left: -26px;
+  width: 26px;
 }
 
 .doc-row.level-3 {
-  padding-left: 36px;
+  margin-left: 36px;
+  width: calc(100% - 36px);
   font-size: 13px;
 }
 
+.doc-row.level-3::before {
+  left: -38px;
+  width: 38px;
+}
+
 .doc-row.level-4 {
-  padding-left: 48px;
+  margin-left: 48px;
+  width: calc(100% - 48px);
   font-size: 13px;
-  color: #64748b;
+}
+
+.doc-row.level-4::before {
+  left: -50px;
+  width: 50px;
 }
 
 .toc-index {

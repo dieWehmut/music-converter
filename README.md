@@ -1,4 +1,4 @@
-# Music Converter
+# Music Converter项目说明
 
 ## 项目简介
 Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用户上传受支持的音频（WAV、MP3 等），系统先解析其风格与情绪特征，再依据目标风格与情绪生成新的编曲。前端由 Vue 3 + Vite 驱动，后端使用 FastAPI，对接深度学习推理管线。
@@ -24,11 +24,6 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - `MC_DEV_MODE=1` 可启用 DEV 模式，快速返回伪造但稳定的数据，方便无 GPU 的前端联调。
 
 ## 架构概览
-
-<p align="center">
-   <img src="docs/architecture.svg" alt="架构概览" width="900" />
-</p>
-
 - **前端**（`frontend/`）：核心界面 `src/views/Home.vue`，负责上传音频、渲染任务进度、展示结果。
 - **后端**（`backend/`）：`server.py` 提供 API、管理后台任务，并加载 `backend/inference/full_pipeline.py` 的 `FullMusicPipeline`。
 - **模型栈**：PyTorch、TensorFlow、Transformers、librosa 等依赖列于 `backend/requirements.txt`。
@@ -69,7 +64,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-# 前端依赖
+## 前端依赖
 进入 `frontend` 并安装依赖：
 ```bash
 cd frontend
@@ -80,7 +75,7 @@ npm install
 
 ## 本地测试指南
 
-### 测试后端（FastAPI）
+### 测试后端
 1. 进入 `backend` 并激活虚拟环境：
    - Windows：`cd backend && .venv\Scripts\activate`
    - macOS/Linux：`cd backend && source .venv/bin/activate`
@@ -98,7 +93,7 @@ npm install
    - `curl -F "file=@test.wav" http://localhost:8000/api/features`
 1. 终端出现 `INFO:     Application startup complete.` 即代表后端就绪。
 
-### 测试前端（Vite）
+### 测试前端
 1. 确保后端运行在 `http://localhost:8000`。
 1. 新开终端进入 `frontend` 目录并执行：
    ```sh
@@ -158,3 +153,30 @@ npm run dev
 - **任务下载提示 not ready**：说明后台仍在运行，请持续轮询任务状态。
 - **CORS 错误**：检查前端地址是否在 `server.py` 的 `allow_origins` 列表。
 - **大文件上传失败**：检查代理/云服务限制，可考虑分片或流式上传。
+
+## Third-Party Notice
+
+This project uses and/or depends on several third-party open-source libraries and models. If you plan to distribute the project or any model weights, please review the upstream licenses and include the appropriate LICENSE/NOTICE files.
+
+- YAMNet (TensorFlow Hub)
+   - Source: https://tfhub.dev/google/yamnet/1
+   - Notes: YAMNet is a model provided via TensorFlow Hub. Check the upstream page for the exact license (often Apache 2.0).
+
+- TensorFlow
+   - Source: https://www.tensorflow.org/
+   - License: Typically Apache License 2.0. Verify the version you depend on.
+
+- PyTorch (torch / torchvision / torchaudio)
+   - Source: https://pytorch.org/
+   - Notes: Check the official repository and LICENSE for each package.
+
+- Hugging Face Transformers / hub
+   - Source: https://github.com/huggingface/transformers
+   - License: Apache License 2.0 (verify for specific models you use).
+
+- librosa
+   - Source: https://github.com/librosa/librosa
+   - License: ISC
+
+- Other dependencies
+   - See `backend/requirements.txt` for a full list (e.g. numpy, scipy, soundfile, huggingface-hub, tokenizers, etc.).

@@ -6,7 +6,6 @@ import { convertAudio } from '../api/upload'
 import UploadAudio from '../components/UploadAudio.vue'
 import TargetEmotionSelector from '../components/TargetEmotionSelector.vue'
 import EmotionResult from '../components/EmotionResult.vue'
-import readmeRaw from '../../../README.md?raw'
 
 const files = ref([])
 const styles = ref([])
@@ -141,6 +140,24 @@ onUnmounted(() => {
   if (observer) observer.disconnect()
 })
 
+function handleMarkdownClick(e) {
+  if (e.target.classList.contains('copy-btn')) {
+    const btn = e.target
+    const pre = btn.nextElementSibling
+    if (pre && pre.tagName === 'PRE') {
+      const code = pre.textContent
+      navigator.clipboard.writeText(code).then(() => {
+        btn.innerText = 'Copied!'
+        btn.classList.add('copied')
+        setTimeout(() => {
+          btn.innerText = 'Copy'
+          btn.classList.remove('copied')
+        }, 2000)
+      })
+    }
+  }
+}
+
 onMounted(async () => {
   const toc = []
   const counters = [0, 0, 0, 0, 0, 0]
@@ -161,11 +178,32 @@ onMounted(async () => {
       }
       
       return `<h${depth} id="${id}" data-doc-header="${id}">${text}</h${depth}>`
+    },
+    code({ text, lang }) {
+      const escapedText = text.replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+      const langClass = lang ? `language-${lang}` : '';
+      return `<div class="code-wrapper"><button class="copy-btn">Copy</button><pre><code class="${langClass}">${escapedText}</code></pre></div>`
     }
   }
   
   marked.use({ renderer })
-  readmeHtml.value = marked.parse(readmeRaw)
+  
+  try {
+    const res = await fetch('https://api.github.com/repos/dieWehmut/music-converter/readme', {
+      headers: { 'Accept': 'application/vnd.github.raw' }
+    })
+    if (res.ok) {
+      const text = await res.text()
+      readmeHtml.value = marked.parse(text)
+    }
+  } catch (e) {
+    console.error('Failed to fetch README:', e)
+  }
+
   docHeaders.value = toc
 
   // load cached uploads first
@@ -639,7 +677,7 @@ function removeItem(index) {
       </section>
 
       <section class="card readme-section" v-if="readmeHtml" data-section-id="readme">
-        <div class="markdown-body" v-html="readmeHtml"></div>
+        <div class="markdown-body" v-html="readmeHtml" @click="handleMarkdownClick"></div>
       </section>
     </div>
   </div>
@@ -955,65 +993,215 @@ h1 {
 
 .readme-section {
   margin-top: 24px;
+  /* subtle entrance for the readme block when it appears */
+  animation: readmeFade 420ms ease both;
+}
+
+/* page entrance */
+.page {
+  animation: pageFadeUp 420ms cubic-bezier(.2,.9,.2,1) both;
+}
+
+@keyframes pageFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes readmeFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .markdown-body {
-  line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 16px;
+  line-height: 1.75;
   color: #334155;
+  word-wrap: break-word;
 }
 
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
-.markdown-body :deep(h3) {
-  margin-top: 24px;
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5),
+.markdown-body :deep(h6) {
+  margin-top: 32px;
   margin-bottom: 16px;
-  font-weight: 600;
-  line-height: 1.25;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #1e293b;
+  border: none;
 }
 
 .markdown-body :deep(h1) {
-  font-size: 2em;
-  border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.3em;
+  font-size: 2.25em;
+  margin-top: 0;
+  letter-spacing: -0.02em;
 }
 
 .markdown-body :deep(h2) {
-  font-size: 1.5em;
-  border-bottom: 1px solid #eaecef;
-  padding-bottom: 0.3em;
+  font-size: 1.75em;
+  letter-spacing: -0.01em;
+  margin-top: 48px;
+}
+
+.markdown-body :deep(h3) {
+  font-size: 1.4em;
+  margin-top: 32px;
 }
 
 .markdown-body :deep(p) {
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.markdown-body :deep(a) {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-left: 1.5em;
+}
+
+.markdown-body :deep(li) {
+  margin-bottom: 8px;
+}
+
+.markdown-body :deep(blockquote) {
+  margin: 24px 0;
+  padding: 16px 24px;
+  color: #475569;
+  background: #f8fafc;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 4px;
 }
 
 .markdown-body :deep(code) {
   padding: 0.2em 0.4em;
   margin: 0;
-  font-size: 85%;
-  background-color: rgba(175, 184, 193, 0.2);
-  border-radius: 6px;
+  font-size: 0.9em;
+  background-color: #f1f5f9;
+  border-radius: 4px;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
 }
 
 .markdown-body :deep(pre) {
-  padding: 16px;
+  padding: 0;
   overflow: auto;
-  font-size: 85%;
-  line-height: 1.45;
-  background-color: #f6f8fa;
-  border-radius: 6px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.markdown-body :deep(.code-wrapper) {
+  position: relative;
+  background-color: #1e293b;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.markdown-body :deep(.code-wrapper pre) {
+  margin-bottom: 0;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.markdown-body :deep(.copy-btn) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 1;
+  z-index: 10;
+}
+
+.markdown-body :deep(.copy-btn:hover) {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.markdown-body :deep(.copy-btn.copied) {
+  background: #22c55e;
+  color: #fff;
+  border-color: #22c55e;
 }
 
 .markdown-body :deep(pre code) {
   background-color: transparent;
   padding: 0;
+  color: inherit;
+  white-space: pre;
 }
 
 .markdown-body :deep(img) {
   max-width: 100%;
   box-sizing: content-box;
   background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  margin: 24px 0;
+}
+
+.markdown-body :deep(hr) {
+  height: 1px;
+  padding: 0;
+  margin: 48px 0;
+  background-color: #e2e8f0;
+  border: 0;
+}
+
+.markdown-body :deep(table) {
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin-top: 0;
+  margin-bottom: 24px;
+  width: 100%;
+  overflow: auto;
+  display: block;
+}
+
+.markdown-body :deep(table th),
+.markdown-body :deep(table td) {
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.markdown-body :deep(table th) {
+  font-weight: 600;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+.markdown-body :deep(table tr) {
+  background-color: #ffffff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.markdown-body :deep(table tr:nth-child(2n)) {
+  background-color: #f8fafc;
 }
 
 [data-section-id],

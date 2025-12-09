@@ -24,11 +24,15 @@
 				</svg>
 			</a>
 		</div>
+
+		<div class="copyright">© {{ year }} dieWehmut's Group · <a href="/#third-party-notice" class="third-party-link">Third-Party Notice</a></div>
 	</footer>
 </template>
 
 <script setup>
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
+
+const year = new Date().getFullYear()
 
 const startAt = new Date('2025-11-13T16:00:00+08:00').getTime()
 
@@ -95,6 +99,24 @@ onBeforeUnmount(() => {
 	gap: 10px;
 	align-items: center;
 	justify-content: center;
+}
+
+.copyright {
+	margin-top: 10px;
+	color: #64748b;
+	font-size: 13px;
+}
+
+.third-party-link {
+	color: #475569;
+	text-decoration: none;
+	margin-left: 6px;
+	border-bottom: 1px dashed rgba(71,85,105,0.12);
+}
+
+.third-party-link:hover {
+	color: #334155;
+	border-bottom-color: rgba(71,85,105,0.28);
 }
 
 .hub-button {
