@@ -84,6 +84,21 @@ async def get_styles():
         return {"styles": ["rock", "pop", "jazz", "electronic", "classical"]}
 
 
+@app.get("/api/emotions")
+async def get_emotions():
+    """返回可用的情绪列表。"""
+    try:
+        from backend.inference import emotion_recognition as er
+        classes = list(er.emotion_labels)
+        if not classes:
+            raise RuntimeError("no classes available")
+        return {"emotions": classes}
+    except Exception as e:
+        LOG.warning("get_emotions fallback: %s", e)
+        # fallback list
+        return {"emotions": ["happy", "sad", "angry", "funny", "scary", "tender"]}
+
+
 @app.get("/")
 async def root():
     """Basic root page to verify the backend is serving requests."""
@@ -278,9 +293,9 @@ async def convert_audio(
         out_dir = Path("backend/output") / task_id
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # 使用提供的 style / emotion，若为空则使用默认值
-        target_style = style or "rock"
-        target_emotion = emotion or "happy"
+        # 使用提供的 style / emotion，若为空则传 None 给 pipeline (pipeline 会自动使用原音频的属性)
+        target_style = style
+        target_emotion = emotion
         
         # Init task
         TASKS[task_id] = { "status": "pending", "created_at": time.time() }
