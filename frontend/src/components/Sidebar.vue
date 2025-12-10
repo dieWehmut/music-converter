@@ -46,7 +46,7 @@
               @click="$emit('scrollTo', 'dashboard.overview')"
             >
               <span class="toc-index">1.1</span>
-              <span class="toc-text">概览</span>
+              <span class="toc-text">功能概览</span>
               <div 
                 class="collapse-btn" 
                 :class="{ collapsed: collapsedIds.has('dashboard.overview') }"
@@ -73,7 +73,7 @@
                   @click.stop="$emit('scrollTo', 'dashboard.overview.style')"
                 >
                   <span class="toc-index">1.1.2</span>
-                  <span class="toc-text">风格选择</span>
+                  <span class="toc-text">风格与情绪选择</span>
                 </div>
                 <div
                   class="toc-row child-row dashboard-subitem"
@@ -110,39 +110,97 @@
               </div>
             </transition>
 
-            <!-- 1.2 可用风格 -->
+            <!-- 1.2 可用风格 / 情绪 （父） -->
             <div
               class="toc-row parent-row"
-              :class="{ active: activeId === 'dashboard.styles' }"
-              @click.stop="$emit('scrollTo', 'dashboard.styles')"
+              :class="{ active: activeId === 'dashboard.options' }"
+              @click.stop="$emit('scrollTo', 'dashboard.options')"
             >
               <span class="toc-index">1.2</span>
-              <span class="toc-text">可用风格</span>
-              <div class="stat-badge" v-if="stylesCount">{{ stylesCount }}</div>
+              <span class="toc-text">转换变量</span>
+              <div class="stat-badge" v-if="(stylesCount || emotionsCount)">{{ (stylesCount || 0) + (emotionsCount || 0) }}</div>
               <div 
                 class="collapse-btn" 
-                :class="{ collapsed: collapsedIds.has('dashboard.styles') }"
-                @click.stop="toggleCollapse('dashboard.styles')"
+                :class="{ collapsed: collapsedIds.has('dashboard.options') }"
+                @click.stop="toggleCollapse('dashboard.options')"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
               </div>
             </div>
 
             <transition name="collapse">
-              <div class="toc-children" v-show="!collapsedIds.has('dashboard.styles')">
-                <div v-if="props.styles && props.styles.length">
-                  <div
-                    v-for="(s, si) in props.styles"
-                    :key="s"
-                    class="toc-row child-row style-subitem"
-                    :class="{ active: activeId === ('dashboard.styles.' + (si + 1)) }"
-                    @click.stop="$emit('scrollTo', 'dashboard.styles.' + (si + 1))"
+              <div class="toc-children" v-show="!collapsedIds.has('dashboard.options')">
+                <!-- 1.2.1 可用风格 -->
+                <div
+                  class="toc-row parent-row"
+                  :class="{ active: activeId === 'dashboard.styles' }"
+                  @click.stop="$emit('scrollTo', 'dashboard.styles')"
+                >
+                  <span class="toc-index">1.2.1</span>
+                  <span class="toc-text">styles</span>
+                  <div class="stat-badge" v-if="stylesCount">{{ stylesCount }}</div>
+                  <div 
+                    class="collapse-btn" 
+                    :class="{ collapsed: collapsedIds.has('dashboard.styles') }"
+                    @click.stop="toggleCollapse('dashboard.styles')"
                   >
-                    <span class="toc-index">1.2.{{ si + 1 }}</span>
-                    <span class="toc-text">{{ s }}</span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
                   </div>
                 </div>
-                <div v-else class="empty-tip">暂无风格</div>
+
+                <transition name="collapse">
+                  <div class="toc-children" v-show="!collapsedIds.has('dashboard.styles')">
+                    <div v-if="props.styles && props.styles.length">
+                      <div
+                        v-for="(s, si) in props.styles"
+                        :key="s"
+                        class="toc-row child-row style-subitem"
+                        :class="{ active: activeId === ('dashboard.styles.' + (si + 1)) }"
+                        @click.stop="$emit('scrollTo', 'dashboard.styles.' + (si + 1))"
+                      >
+                        <span class="toc-index">1.2.1.{{ si + 1 }}</span>
+                        <span class="toc-text">{{ s }}</span>
+                      </div>
+                    </div>
+                    <div v-else class="empty-tip">暂无风格</div>
+                  </div>
+                </transition>
+
+                <!-- 1.2.2 可用情绪 -->
+                <div
+                  class="toc-row parent-row"
+                  :class="{ active: activeId === 'dashboard.emotions' }"
+                  @click.stop="$emit('scrollTo', 'dashboard.emotions')"
+                >
+                  <span class="toc-index">1.2.2</span>
+                  <span class="toc-text">emotions</span>
+                  <div class="stat-badge" v-if="emotionsCount">{{ emotionsCount }}</div>
+                  <div 
+                    class="collapse-btn" 
+                    :class="{ collapsed: collapsedIds.has('dashboard.emotions') }"
+                    @click.stop="toggleCollapse('dashboard.emotions')"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                  </div>
+                </div>
+
+                <transition name="collapse">
+                  <div class="toc-children" v-show="!collapsedIds.has('dashboard.emotions')">
+                    <div v-if="props.emotions && props.emotions.length">
+                      <div
+                        v-for="(e, ei) in props.emotions"
+                        :key="e"
+                        class="toc-row child-row emotion-subitem"
+                        :class="{ active: activeId === ('dashboard.emotions.' + (ei + 1)) }"
+                        @click.stop="$emit('scrollTo', 'dashboard.emotions.' + (ei + 1))"
+                      >
+                        <span class="toc-index">1.2.2.{{ ei + 1 }}</span>
+                        <span class="toc-text">{{ e }}</span>
+                      </div>
+                    </div>
+                    <div v-else class="empty-tip">暂无情绪</div>
+                  </div>
+                </transition>
               </div>
             </transition>
 
@@ -176,7 +234,7 @@
                     @click.stop="$emit('scrollTo', t.sectionId)"
                   >
                     <span class="toc-index">1.3.{{ ri + 1 }}</span>
-                    <span class="toc-text">{{ t.fileName }} — {{ t.style }}</span>
+                    <span class="toc-text">{{ t.fileName }} — {{ t.style }}<span v-if="t.emotion"> / {{ t.emotion }}</span></span>
                     <span class="status-dot" :class="t.status" :title="t.status"></span>
                   </div>
                 </div>
@@ -257,7 +315,7 @@
                 @click.stop="$emit('scrollTo', task.id)"
               >
                 <span class="toc-index">2.{{ fIdx + 1 }}.{{ tIdx + 1 }}</span>
-                <span class="toc-text">{{ task.style || '未设定风格' }}</span>
+                <span class="toc-text">{{ formatTaskLabel(file, task) }}</span>
                 <!-- Status indicator (dot) -->
                 <span class="status-dot" :class="task.status" :title="task.status"></span>
                 </div>
@@ -328,6 +386,8 @@ const props = defineProps({
   docHeaders: { type: Array, default: () => [] },
   stylesCount: { type: Number, default: 0 },
   styles: { type: Array, default: () => [] },
+  emotionsCount: { type: Number, default: 0 },
+  emotions: { type: Array, default: () => [] },
   recentTasks: { type: Array, default: () => [] }
 })
 
@@ -354,9 +414,14 @@ const flatItemList = computed(() => {
   list.push('dashboard.overview.analysis')
   list.push('dashboard.overview.tasks')
   list.push('dashboard.overview.download')
+  // styles group (1.2.1)
+  // styles group (1.2.1)
+  list.push('dashboard.options')
   list.push('dashboard.styles')
-  // include style children (1.2.1, 1.2.2 ...)
   props.styles && props.styles.forEach((s, i) => list.push('dashboard.styles.' + (i + 1)))
+  // emotions group (1.2.2)
+  list.push('dashboard.emotions')
+  props.emotions && props.emotions.forEach((e, i) => list.push('dashboard.emotions.' + (i + 1)))
   list.push('dashboard.recent')
   list.push('uploads')
   // include recent tasks (1.3.1, 1.3.2 ...)
@@ -378,6 +443,18 @@ const activeIndexDisplay = computed(() => {
 })
 
 const collapsedIds = ref(new Set())
+
+// Format task label showing style / emotion and append (n) when there are duplicates
+function formatTaskLabel(file, task) {
+  if (!file || !file.tasks) {
+    return `${task.style || '未设定风格'}${task.emotion ? ' / ' + task.emotion : ''}`
+  }
+  const same = file.tasks.filter(t => (t.style || '') === (task.style || '') && (t.emotion || '') === (task.emotion || ''))
+  const base = `${task.style || '未设定风格'}${task.emotion ? ' / ' + task.emotion : ''}`
+  if (same.length <= 1) return base
+  const idx = same.findIndex(t => t.id === task.id)
+  return `${base}(${idx + 1})`
+}
 
 const toggleCollapse = (id) => {
   if (collapsedIds.value.has(id)) {
