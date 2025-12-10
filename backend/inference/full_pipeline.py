@@ -210,6 +210,15 @@ class FullMusicPipeline:
         print(f"🎵 Original Style:   {orig['style']}")
         print(f"😊 Original Emotion: {orig['emotion']}")
 
+        # 如果未指定目标，则默认保持原样
+        if not target_style:
+            target_style = orig['style']
+            print(f"👉 Target Style not specified, using original: {target_style}")
+        
+        if not target_emotion:
+            target_emotion = orig['emotion']
+            print(f"👉 Target Emotion not specified, using original: {target_emotion}")
+
         # --- Melody info ---
         print("\n🎼 Extracting melody info…")
         try:

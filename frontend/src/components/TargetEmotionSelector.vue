@@ -42,7 +42,8 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 
 const props = defineProps({
 	styles: { type: Array, default: () => [] },
-	modelValue: { type: String, default: '' }
+	modelValue: { type: String, default: '' },
+	placeholder: { type: String, default: '选择风格' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -91,7 +92,7 @@ function handleResize() {
 }
 
 const modelValue = computed(() => props.modelValue)
-const currentLabel = computed(() => modelValue.value || props.styles[0] || '选择风格')
+const currentLabel = computed(() => modelValue.value || props.styles[0] || props.placeholder)
 const activeOptionId = computed(() => (modelValue.value ? `style-option-${modelValue.value}` : undefined))
 
 function toggleDropdown() {
