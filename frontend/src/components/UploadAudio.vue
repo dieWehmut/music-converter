@@ -1,6 +1,6 @@
 <template>
   <div>
-		<button type="button" :class="['pill-control', 'pill-control--primary', 'upload-btn', $attrs.class]" @click="openFileDialog">
+		<button type="button" :class="['pill-control', 'pill-control--success', 'upload-btn', $attrs.class]" @click="openFileDialog">
       <slot>上传音频</slot>
     </button>
     <input ref="fileInput" class="visually-hidden" type="file" accept="audio/*" multiple @change="onFileChange" />
@@ -35,9 +35,7 @@ function onFileChange(e) {
 </script>
 
 <style scoped>
-	.upload-btn {
-		box-shadow: none;
-	}
+
 .visually-hidden {
 	position: absolute !important;
 	height: 1px; width: 1px;
