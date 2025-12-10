@@ -1,11 +1,20 @@
 <template>
   <div class="sidebar">
     <div class="toc-header">
-      <div class="toc-left">
-        <span class="toc-icon">☰</span>
+        <div class="toc-left">
+          <span class="toc-icon" @click="handleToggle" title="切换侧栏" role="button" tabindex="0">☰</span>
         <span class="toc-title">目录</span>
+        <UploadAudio class="sidebar-upload-btn header-upload" @files="handleUploadFiles" title="上传音频" aria-label="上传音频">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 3v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 21H3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </UploadAudio>
       </div>
-      <span class="toc-count">{{ activeIndexDisplay }}</span>
+      <div class="toc-right">
+        <span class="toc-count">{{ activeIndexDisplay }}</span>
+      </div>
     </div>
 
     <div class="toc-body" ref="tocBody">
@@ -110,6 +119,13 @@
               <span class="toc-index">1.2</span>
               <span class="toc-text">可用风格</span>
               <div class="stat-badge" v-if="stylesCount">{{ stylesCount }}</div>
+              <div 
+                class="collapse-btn" 
+                :class="{ collapsed: collapsedIds.has('dashboard.styles') }"
+                @click.stop="toggleCollapse('dashboard.styles')"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+              </div>
             </div>
 
             <transition name="collapse">
@@ -123,7 +139,7 @@
                     @click.stop="$emit('scrollTo', 'dashboard.styles.' + (si + 1))"
                   >
                     <span class="toc-index">1.2.{{ si + 1 }}</span>
-                    <span class="toc-text">{{ si + 1 }}. {{ s }}</span>
+                    <span class="toc-text">{{ s }}</span>
                   </div>
                 </div>
                 <div v-else class="empty-tip">暂无风格</div>
@@ -198,15 +214,7 @@
             <span class="section-count" v-if="files.length">{{ files.length }}</span>
           </div>
           <!-- upload button placed to the right of the count; stop click propagation so title click isn't triggered -->
-          <div class="sidebar-upload" @click.stop>
-            <UploadAudio class="sidebar-upload-btn" @files="handleUploadFiles" title="上传音频" aria-label="上传音频">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M12 3v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M21 21H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </UploadAudio>
-          </div>
+          <!-- upload button moved to header -->
           <div 
             class="collapse-btn" 
             :class="{ collapsed: collapsedIds.has('uploads') }"
@@ -323,13 +331,17 @@ const props = defineProps({
   recentTasks: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['scrollTo', 'uploadFiles'])
+const emit = defineEmits(['scrollTo', 'uploadFiles', 'toggleSidebar'])
 
 const recentTasks = computed(() => props.recentTasks || [])
 
 function handleUploadFiles(files) {
   // forward upload files event to parent
   emit('uploadFiles', files)
+}
+
+function handleToggle() {
+  emit('toggleSidebar')
 }
 
 const flatItemList = computed(() => {
@@ -468,6 +480,38 @@ watch(() => props.activeId, async (id) => {
   background: transparent;
 }
 
+.toc-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toc-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Header upload button styling (green circular) */
+.sidebar-upload-btn.header-upload {
+  /* rectangular button matching title height */
+  height: 34px; /* match visual height of the title text */
+  padding: 0 12px;
+  min-width: 40px;
+  border-radius: 8px;
+  background: #10b981; /* green */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(16,185,129,0.12);
+  border: none;
+  margin-left: 8px; /* sit closer to the title */
+  line-height: 1;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+.sidebar-upload-btn.header-upload svg { stroke: currentColor; }
+.sidebar-upload-btn.header-upload:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(16,185,129,0.16); }
+
 .toc-left {
   display: flex;
   align-items: center;
@@ -477,6 +521,27 @@ watch(() => props.activeId, async (id) => {
 
 .toc-icon {
   font-size: 20px;
+  cursor: pointer;
+}
+
+.toc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 120ms ease;
+}
+.toc-icon:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 8px 22px rgba(59,130,246,0.12);
+  background: rgba(59,130,246,0.06);
+  color: #334155;
+}
+.toc-icon:focus {
+  outline: 2px solid rgba(59,130,246,0.18);
+  outline-offset: 2px;
 }
 
 .toc-title {
@@ -602,8 +667,13 @@ watch(() => props.activeId, async (id) => {
 }
 
 .toc-row:hover {
-  color: #334155;
-  background: rgba(0,0,0,0.03);
+  color: var(--color-text);
+  background: rgba(59,130,246,0.04); /* subtle blue like recent tasks */
+  transform: translateX(4px);
+  box-shadow: 0 6px 18px rgba(59,130,246,0.06);
+}
+.toc-row:active {
+  transform: translateX(1px) scale(0.998);
 }
 
 .toc-row.active {
@@ -827,6 +897,41 @@ watch(() => props.activeId, async (id) => {
 .recent-subitem {
   font-size: 13px;
   color: #64748b;
+}
+
+/* Hover-enlarge effects for all sidebar titles and entries */
+.toc-title,
+.toc-section-title .title-left > span,
+.toc-row .toc-text,
+.doc-row .toc-text {
+  display: inline-block;
+  transition: transform 180ms cubic-bezier(.2,.9,.2,1), color 140ms ease, text-shadow 200ms ease;
+  transform-origin: left center;
+}
+
+/* Header title (目录) */
+.toc-title:hover {
+  transform: scale(1.06) translateX(2px);
+  color: #334155;
+  text-shadow: 0 8px 20px rgba(2,6,23,0.06);
+}
+
+/* Section titles */
+.toc-section-title.clickable:hover .title-left > span {
+  transform: scale(1.04) translateX(4px);
+  color: #0f172a;
+}
+
+/* Rows (parents/children/doc rows) enlarge the text when hovered */
+.toc-row:hover .toc-text,
+.doc-row:hover .toc-text {
+  transform: scale(1.03) translateX(4px);
+  color: var(--color-text);
+}
+
+/* Keep existing hover translate but make the text scale more prominent */
+.toc-row:hover {
+  transform: translateX(4px);
 }
 
 /* Collapse transition for Vue <transition name="collapse"> */

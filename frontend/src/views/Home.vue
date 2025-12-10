@@ -123,6 +123,23 @@ const recentTasks = computed(() => {
   }))
 })
 
+// UI collapse state for dashboard sections
+const overviewCollapsed = ref(false)
+const stylesCollapsed = ref(false)
+const recentCollapsed = ref(false)
+
+function toggleOverview() {
+  overviewCollapsed.value = !overviewCollapsed.value
+}
+
+function toggleStyles() {
+  stylesCollapsed.value = !stylesCollapsed.value
+}
+
+function toggleRecent() {
+  recentCollapsed.value = !recentCollapsed.value
+}
+
 function formatRecentTime(value) {
   if (!value) return ''
   let d
@@ -335,7 +352,8 @@ onMounted(async () => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
       const langClass = lang ? `language-${lang}` : '';
-      return `<div class="code-wrapper"><button class="copy-btn">Copy</button><pre><code class="${langClass}">${escapedText}</code></pre></div>`
+      const langAttr = lang ? ` data-lang="${lang}"` : '';
+      return `<div class="code-wrapper"><button class="copy-btn">Copy</button><pre${langAttr}><code class="${langClass}">${escapedText}</code></pre></div>`
     }
   }
   
@@ -761,8 +779,14 @@ function removeTask(item, task) {
       <div class="styles-debug card" data-section-id="dashboard">
 
         <div class="dashboard-overview" data-section-id="dashboard.overview">
-          <h3 class="styles-title">功能概览</h3>
-          <div class="dashboard-desc">
+          <div class="section-header">
+            <h3 class="styles-title">功能概览</h3>
+            <button class="collapse-section-btn" :class="{ collapsed: overviewCollapsed }" @click.stop="toggleOverview" :aria-expanded="!overviewCollapsed" title="收起/展开概览">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </button>
+          </div>
+          <transition name="collapse">
+            <div class="dashboard-desc" v-show="!overviewCollapsed">
             <p>本工具用于将上传的音频片段转换为不同音乐风格并提供情绪/风格的可视化分析。操作尽量在本地完成以保护隐私，结果可在页面内预览或下载。</p>
             <ul class="dashboard-desc-list">
               <li data-section-id="dashboard.overview.upload">
@@ -808,48 +832,67 @@ function removeTask(item, task) {
                 </div>
               </li>
             </ul>
-          </div>
+            </div>
+          </transition>
         </div>
 
         <div class="dashboard-styles" data-section-id="dashboard.styles">
-          <h3 class="styles-title">可用风格（styles）</h3>
-          <div v-if="styles.length" class="styles-list-vertical">
-            <div
-              v-for="(s, si) in styles"
-              :key="s"
-              class="style-row"
-              :data-section-id="'dashboard.styles.' + (si + 1)"
-            >
-              <span class="style-num">{{ si + 1 }}</span>
-              <span class="style-name">{{ s }}</span>
-            </div>
+          <div class="section-header">
+            <h3 class="styles-title">可用风格（styles）</h3>
+            <button class="collapse-section-btn" :class="{ collapsed: stylesCollapsed }" @click.stop="toggleStyles" :aria-expanded="!stylesCollapsed" title="收起/展开风格列表">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </button>
           </div>
-          <div v-else-if="globalError" class="error">加载风格失败：{{ globalError }}</div>
-          <div v-else>加载中…</div>
+          <transition name="collapse">
+            <div v-show="!stylesCollapsed">
+              <div v-if="styles.length" class="styles-list-vertical">
+                <div
+                  v-for="(s, si) in styles"
+                  :key="s"
+                  class="style-row"
+                  :data-section-id="'dashboard.styles.' + (si + 1)"
+                >
+                  <span class="style-num">{{ si + 1 }}</span>
+                  <span class="style-name">{{ s }}</span>
+                </div>
+              </div>
+              <div v-else-if="globalError" class="error">加载风格失败：{{ globalError }}</div>
+              <div v-else>加载中…</div>
+            </div>
+          </transition>
         </div>
 
         <div class="dashboard-recent" data-section-id="dashboard.recent">
-          <h4>最近任务</h4>
-          <div v-if="recentTasks.length">
-            <div
-              v-for="(t, i) in recentTasks"
-              :key="t.taskId"
-              class="recent-task"
-              role="button"
-              tabindex="0"
-              @click="handleRecentClick(t)"
-              @keydown.enter.prevent="handleRecentClick(t)"
-              :data-section-id="t.sectionId"
-            >
-              <span class="recent-task-index">({{ t.index }})</span>
-              <span class="recent-task-file">{{ t.fileName }}</span>
-              <span class="recent-task-sep">—</span>
-              <span class="recent-task-style">{{ t.style }}</span>
-              <span class="status-dot" :class="t.status" :title="t.status" style="margin-left:8px"></span>
-              <span class="recent-task-time" v-if="formatRecentTime(t.createdAt)">{{ formatRecentTime(t.createdAt) }}</span>
-            </div>
+          <div class="section-header">
+            <h4 class="styles-title">最近任务</h4>
+            <button class="collapse-section-btn" :class="{ collapsed: recentCollapsed }" @click.stop="toggleRecent" :aria-expanded="!recentCollapsed" title="收起/展开最近任务">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </button>
           </div>
-          <div v-else class="empty-tip">暂无最近任务</div>
+          <transition name="collapse">
+            <div v-show="!recentCollapsed">
+              <div v-if="recentTasks.length">
+                <div
+                  v-for="(t, i) in recentTasks"
+                  :key="t.taskId"
+                  class="recent-task"
+                  role="button"
+                  tabindex="0"
+                  @click="handleRecentClick(t)"
+                  @keydown.enter.prevent="handleRecentClick(t)"
+                  :data-section-id="t.sectionId"
+                >
+                  <span class="recent-task-index">({{ t.index }})</span>
+                  <span class="recent-task-file">{{ t.fileName }}</span>
+                  <span class="recent-task-sep">—</span>
+                  <span class="recent-task-style">{{ t.style }}</span>
+                  <span class="status-dot" :class="t.status" :title="t.status" style="margin-left:8px"></span>
+                  <span class="recent-task-time" v-if="formatRecentTime(t.createdAt)">{{ formatRecentTime(t.createdAt) }}</span>
+                </div>
+              </div>
+              <div v-else class="empty-tip">暂无最近任务</div>
+            </div>
+          </transition>
         </div>
 
         <div class="dashboard-actions">
@@ -1103,6 +1146,29 @@ h1 {
   font-size: 13px;
   color: var(--color-text-muted);
 }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.collapse-section-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15,23,42,0.06);
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: transform 160ms ease, background 120ms ease, color 120ms ease;
+}
+.collapse-section-btn:hover { background: rgba(0,0,0,0.03); color: var(--color-text); }
+.collapse-section-btn.collapsed { transform: rotate(-90deg); }
 
 .style-pill {
   padding: 6px 14px;
@@ -1529,6 +1595,142 @@ h1 {
   word-wrap: break-word;
 }
 
+/* Polished markdown tweaks */
+.markdown-body {
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "liga" 1;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3) {
+  scroll-margin-top: 48px;
+}
+
+.markdown-body :deep(h2), .markdown-body :deep(h3) {
+  padding-bottom: 6px;
+  margin-top: 28px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(226,232,240,0.6);
+  padding-left: 6px;
+}
+
+.markdown-body :deep(code) {
+  background: rgba(15,23,42,0.04);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.92em;
+  color: #0f172a;
+}
+
+.markdown-body :deep(pre) {
+  border-radius: 10px;
+  overflow: auto;
+  box-shadow: 0 8px 20px rgba(2,6,23,0.06);
+  background: linear-gradient(180deg, #0f172a, #0b1220);
+  color: #e6eef8;
+  padding: 12px;
+  position: relative;
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 4px solid rgba(59,130,246,0.12);
+  background: rgba(59,130,246,0.03);
+  padding: 12px 16px;
+  border-radius: 6px;
+}
+
+/* Code wrapper label + styling */
+.markdown-body .code-wrapper {
+  position: relative;
+  margin: 12px 0;
+}
+.markdown-body .code-wrapper pre {
+  margin: 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(2,6,23,0.9), rgba(6,10,22,0.85));
+  color: #e6eef8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: auto;
+}
+.markdown-body .code-wrapper pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  font-size: 12px;
+  color: rgba(230,238,248,0.85);
+  background: rgba(255,255,255,0.04);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.markdown-body .code-wrapper .copy-btn {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  z-index: 12;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #e6eef8;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.markdown-body .code-wrapper .copy-btn.copied { background: #16a34a; border-color: #16a34a; }
+
+/* Table polish */
+.markdown-body :deep(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+.markdown-body :deep(table thead) th {
+  background: linear-gradient(90deg, rgba(59,130,246,0.06), rgba(16,185,129,0.03));
+  color: #0f172a;
+  font-weight: 700;
+}
+.markdown-body :deep(table tbody tr:nth-child(odd)) {
+  background: rgba(246,249,252,0.6);
+}
+.markdown-body :deep(table td), .markdown-body :deep(table th) {
+  border-bottom: 1px solid rgba(226,232,240,0.6);
+}
+
+.markdown-body :deep(ul), .markdown-body :deep(ol) {
+  padding-left: 1.25em;
+}
+.markdown-body :deep(li) {
+  margin-bottom: 8px;
+}
+.markdown-body :deep(li)::marker {
+  color: rgba(59,130,246,0.9);
+  font-weight: 700;
+}
+
+.markdown-body :deep(table) {
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(2,6,23,0.04);
+}
+.markdown-body :deep(table thead) th {
+  background: #f8fafc;
+}
+.markdown-body :deep(table th), .markdown-body :deep(table td) {
+  padding: 10px 12px;
+}
+
+.markdown-body :deep(img) {
+  display: block;
+  margin: 18px auto;
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(2,6,23,0.06);
+}
+
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
 .markdown-body :deep(h3),
@@ -1711,6 +1913,118 @@ h1 {
 
 .markdown-body :deep(table tr:nth-child(2n)) {
   background-color: #f8fafc;
+}
+
+/* Enhanced heading emoji + hover effects */
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3) {
+  transition: transform 180ms cubic-bezier(.2,.9,.2,1), color 160ms ease, text-shadow 200ms ease;
+  position: relative;
+}
+.markdown-body :deep(h1):hover,
+.markdown-body :deep(h2):hover,
+.markdown-body :deep(h3):hover {
+  transform: translateX(6px) scale(1.01);
+  color: #0b1220;
+  text-shadow: 0 8px 30px rgba(2,6,23,0.06);
+}
+.markdown-body :deep(h1)::after,
+.markdown-body :deep(h2)::after,
+
+.markdown-body :deep(h1):hover::after,
+.markdown-body :deep(h2):hover::after,
+.markdown-body :deep(h3):hover::after { opacity: 1; transform: translateY(-1px) scale(1); }
+
+/* Fancy horizontal rule with emoji */
+.markdown-body :deep(hr) {
+  height: 2px;
+  padding: 0;
+  margin: 48px 0;
+  background: linear-gradient(90deg, rgba(59,130,246,0.18), rgba(16,185,129,0.10));
+  border: 0;
+  position: relative;
+  border-radius: 6px;
+}
+.markdown-body :deep(hr)::before {
+  content: "✨";
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  transform: translateX(-50%);
+  background: white;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+}
+
+/* Code block: stronger left accent, language badge and refined copy button */
+.markdown-body .code-wrapper {
+  position: relative;
+  margin: 16px 0 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.06);
+  border-left: 6px solid rgba(59,130,246,0.14);
+}
+.markdown-body .code-wrapper pre {
+  margin: 0;
+  padding: 18px 16px 18px 20px;
+  background: linear-gradient(180deg, #091223, #071021);
+  color: #eaf3ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.markdown-body .code-wrapper pre[data-lang]::after {
+  content: attr(data-lang);
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  font-size: 12px;
+  color: rgba(230,238,248,0.95);
+  background: rgba(255,255,255,0.04);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.markdown-body .code-wrapper .copy-btn {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  z-index: 12;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #e6eef8;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+}
+.markdown-body .code-wrapper .copy-btn.copied { background: #16a34a; border-color: #16a34a; }
+
+/* Inline code emphasis */
+.markdown-body :deep(code) {
+  background: linear-gradient(90deg, rgba(59,130,246,0.04), rgba(2,6,23,0.01));
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #071128;
+}
+
+/* Subtle drop emoji for blockquote */
+.markdown-body :deep(blockquote) {
+  border-left: 6px solid rgba(59,130,246,0.12);
+  background: linear-gradient(90deg, rgba(59,130,246,0.02), rgba(2,6,23,0.01));
+}
+
+/* small typography tweaks */
+.markdown-body {
+  letter-spacing: -0.01em;
+  color: #0f172a;
 }
 
 [data-section-id],

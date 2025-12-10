@@ -1,6 +1,6 @@
 <template>
   <div class="app-shell" :class="{ 'no-sidebar': !isSidebarVisible }">
-    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" :styles-count="stylesCount" :styles="stylesArr" :recent-tasks="recentTasks" @scrollTo="handleScrollTo" @uploadFiles="handleUploadFiles" />
+    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" :styles-count="stylesCount" :styles="stylesArr" :recent-tasks="recentTasks" @scrollTo="handleScrollTo" @uploadFiles="handleUploadFiles" @toggleSidebar="toggleSidebar" />
 
     <div class="main">
       <Home ref="homeRef" />
@@ -197,11 +197,27 @@ function handleUploadFiles(files) {
 }
 
 .app-shell.no-sidebar :deep(.sidebar) {
-  width: 0 !important;
-  padding: 0 !important;
-  opacity: 0;
-  transform: translateX(-8px);
-  overflow: hidden;
+  /* keep a narrow handle so the ☰ remains visible in the same place */
+  width: 56px !important;
+  padding: 12px 8px !important;
+  opacity: 1;
+  transform: none;
+  overflow: visible;
+  box-shadow: none;
+}
+
+/* hide the main toc content but keep header (so the hamburger stays) */
+.app-shell.no-sidebar :deep(.sidebar) .toc-body,
+.app-shell.no-sidebar :deep(.sidebar) .toc-right,
+.app-shell.no-sidebar :deep(.sidebar) .toc-title,
+.app-shell.no-sidebar :deep(.sidebar) .sidebar-upload-btn.header-upload {
+  display: none !important;
+}
+
+/* make sure header area still shows the icon centered */
+.app-shell.no-sidebar :deep(.sidebar) .toc-header {
+  padding: 12px 8px !important;
+  justify-content: flex-start;
 }
 
 /* subtle shift for main when sidebar collapses */
