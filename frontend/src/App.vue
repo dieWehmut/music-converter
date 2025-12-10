@@ -1,10 +1,10 @@
 <template>
   <div class="app-shell" :class="{ 'no-sidebar': !isSidebarVisible }">
-    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" @scrollTo="handleScrollTo" />
+    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" :styles-count="stylesCount" :styles="stylesArr" :recent-tasks="recentTasks" @scrollTo="handleScrollTo" @uploadFiles="handleUploadFiles" />
 
     <div class="main">
       <Home ref="homeRef" />
-      <Footer />
+      <Footer @scrollTo="scrollToThirdParty" />
     </div>
 
     <div class="floating-tools">
@@ -14,6 +14,9 @@
       </button>
       <button class="float-btn" @click="scrollToNextMain" title="下一个主标题">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"></polyline><polyline points="7 6 12 11 17 6"></polyline></svg>
+      </button>
+      <button class="float-btn" @click="scrollToPrevMain" title="上一个主标题">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg>
       </button>
       <button class="float-btn" @click="scrollToTop" title="回到顶部">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
@@ -34,6 +37,9 @@ const isSidebarVisible = ref(true)
 const files = computed(() => homeRef.value?.files ?? [])
 const activeId = computed(() => homeRef.value?.activeId ?? '')
 const docHeaders = computed(() => homeRef.value?.docHeaders ?? [])
+const stylesArr = computed(() => homeRef.value?.styles ?? [])
+const stylesCount = computed(() => Array.isArray(stylesArr.value) ? stylesArr.value.length : 0)
+const recentTasks = computed(() => homeRef.value?.recentTasks ?? [])
 
 function toggleSidebar() {
   isSidebarVisible.value = !isSidebarVisible.value
@@ -71,6 +77,41 @@ function scrollToNextMain() {
   }
 }
 
+function scrollToPrevMain() {
+  const current = activeId.value
+  let currentSectionIndex = 0 // Default to dashboard (0)
+
+  // Check if in Uploads (1)
+  const isUploads = current === 'uploads' || 
+                    files.value.some(f => f.id === current || (f.tasks && f.tasks.some(t => t.id === current)))
+  
+  // Check if in Readme (2)
+  const isReadme = current === 'readme' ||
+                   docHeaders.value.some(h => h.id === current)
+
+  if (isReadme) currentSectionIndex = 2
+  else if (isUploads) currentSectionIndex = 1
+  
+  const sections = ['dashboard', 'uploads', 'readme']
+  const prevIndex = currentSectionIndex - 1
+  
+  if (prevIndex >= 0) {
+    handleScrollTo(sections[prevIndex])
+  } else {
+    // no previous main section — scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+function scrollToThirdParty() {
+  // Find the README header whose text matches "Third-Party Notice"
+  const target = docHeaders.value.find(h => h.text === 'Third-Party Notice')
+    || docHeaders.value.find(h => h.id === 'third-party-notice')
+
+  const id = target?.id || 'third-party-notice'
+  handleScrollTo(id)
+}
+
 function handleScrollTo(id) {
   let el = document.querySelector(`[data-file-id="${id}"]`)
   if (!el) {
@@ -82,9 +123,20 @@ function handleScrollTo(id) {
   if (!el) {
     el = document.querySelector(`[data-doc-header="${id}"]`)
   }
+  // fallback to plain id attribute
+  if (!el) {
+    el = document.getElementById(id)
+  }
   
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function handleUploadFiles(files) {
+  // forward upload files to Home view's handler if available
+  if (homeRef.value && typeof homeRef.value.onFilesSelected === 'function') {
+    homeRef.value.onFilesSelected(files)
   }
 }
 </script>

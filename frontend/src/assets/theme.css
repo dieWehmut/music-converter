@@ -107,6 +107,20 @@ button {
   border-color: transparent;
 }
 
+/* Success (green) - used for upload/convert/download actions */
+.btn--success {
+  background: linear-gradient(120deg, #16a34a, #22c55e);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Info (blue) - used for analysis / view actions */
+.btn--info {
+  background: linear-gradient(120deg, #3b82f6, #2563eb);
+  color: #fff;
+  border-color: transparent;
+}
+
 .btn--ghost {
   background: rgba(15, 23, 42, 0.04);
   border-color: rgba(15, 23, 42, 0.08);
@@ -158,6 +172,13 @@ button {
   border: none;
 }
 
+/* Success pill for upload button */
+.pill-control--success {
+  background: linear-gradient(120deg, #16a34a, #22c55e);
+  color: #fff;
+  border: none;
+}
+
 .pill-control--primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
@@ -168,6 +189,12 @@ button {
   border: 1px solid rgba(15, 23, 42, 0.12);
   color: var(--color-text);
   box-shadow: none;
+}
+
+/* Make success pill hover match primary style */
+.pill-control--success:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(34, 197, 94, 0.30);
 }
 
 .pill-control--neutral:hover {
