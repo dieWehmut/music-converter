@@ -5,25 +5,27 @@
 		<div class="chart-grid">
 			<div class="chart-card" v-if="styleSegments.length">
 				<div class="chart-title">风格占比</div>
-				<div class="chart-figure" :style="{ backgroundImage: styleGradient }">
-					<div class="chart-center">Style</div>
-					<div class="chart-labels">
-						<div
-							v-for="segment in styleSegments"
-							:key="segment?.label || 'style-'+$index"
-							v-if="(segment?.percent ?? 0) >= 5"
-							class="chart-label"
-							:style="segmentLabelStyle(segment)"
-						>
-							{{ Math.round(segment?.percent ?? 0) }}%
+				<div class="chart-main">
+					<div class="chart-figure" :style="{ '--chart-bg': styleGradient }">
+						<div class="chart-center">Style</div>
+						<div class="chart-labels">
+							<div
+								v-for="segment in styleSegments"
+								:key="segment?.label || 'style-'+$index"
+								v-if="(segment?.percent ?? 0) >= 5"
+								class="chart-label"
+								:style="segmentLabelStyle(segment)"
+							>
+								{{ Math.round(segment?.percent ?? 0) }}%
+							</div>
 						</div>
 					</div>
-				</div>
-				<div class="legend">
-					<div class="legend-item" v-for="segment in styleSegments" :key="segment.label">
-						<span class="dot" :style="{ backgroundColor: segment.color }"></span>
-						<span class="legend-label">{{ segment.label }}</span>
-						<span class="legend-value">{{ Math.round(segment.percent) }}%</span>
+					<div class="legend">
+						<div class="legend-item" v-for="segment in styleSegments" :key="segment.label">
+							<span class="dot" :style="{ backgroundColor: segment.color }"></span>
+							<span class="legend-label">{{ segment.label }}</span>
+							<span class="legend-value">{{ Math.round(segment.percent) }}%</span>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -34,25 +36,27 @@
 
 			<div class="chart-card" v-if="emotionSegments.length">
 				<div class="chart-title">情绪占比</div>
-				<div class="chart-figure" :style="{ backgroundImage: emotionGradient }">
-					<div class="chart-center">Emotion</div>
-					<div class="chart-labels">
-						<div
-							v-for="segment in emotionSegments"
-							:key="segment?.label || 'emotion-'+$index"
-							v-if="(segment?.percent ?? 0) >= 5"
-							class="chart-label"
-							:style="segmentLabelStyle(segment)"
-						>
-							{{ Math.round(segment?.percent ?? 0) }}%
+				<div class="chart-main">
+					<div class="chart-figure" :style="{ '--chart-bg': emotionGradient }">
+						<div class="chart-center">Emotion</div>
+						<div class="chart-labels">
+							<div
+								v-for="segment in emotionSegments"
+								:key="segment?.label || 'emotion-'+$index"
+								v-if="(segment?.percent ?? 0) >= 5"
+								class="chart-label"
+								:style="segmentLabelStyle(segment)"
+							>
+								{{ Math.round(segment?.percent ?? 0) }}%
+							</div>
 						</div>
 					</div>
-				</div>
-				<div class="legend">
-					<div class="legend-item" v-for="segment in emotionSegments" :key="segment.label">
-						<span class="dot" :style="{ backgroundColor: segment.color }"></span>
-						<span class="legend-label">{{ segment.label }}</span>
-						<span class="legend-value">{{ Math.round(segment.percent) }}%</span>
+					<div class="legend">
+						<div class="legend-item" v-for="segment in emotionSegments" :key="segment.label">
+							<span class="dot" :style="{ backgroundColor: segment.color }"></span>
+							<span class="legend-label">{{ segment.label }}</span>
+							<span class="legend-value">{{ Math.round(segment.percent) }}%</span>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -191,6 +195,12 @@ const _segmentLabelStyle = segmentLabelStyle
 		box-shadow: var(--shadow-soft);
 	}
 
+	.chart-main {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+	}
+
 	.chart-card.empty {
 		align-items: center;
 		justify-content: center;
@@ -212,7 +222,44 @@ const _segmentLabelStyle = segmentLabelStyle
 		align-items: center;
 		justify-content: center;
 		position: relative;
-		box-shadow: inset 0 0 0 12px #fff;
+		/* remove inner white ring to avoid white border */
+		box-shadow: none;
+		transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms ease;
+		will-change: transform;
+		cursor: default;
+	}
+
+	/* rotating background layer */
+	.chart-figure::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background-image: var(--chart-bg);
+		background-size: cover;
+		background-position: center;
+		z-index: 0;
+		will-change: transform;
+		animation: spin 8s linear infinite;
+	}
+
+	.chart-figure:hover::before {
+		animation-play-state: paused;
+	}
+
+	.chart-figure:hover {
+		transform: scale(1.18);
+	}
+
+	/* ensure content sits above rotating layer */
+	.chart-figure > * {
+		position: relative;
+		z-index: 2;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.chart-labels {
@@ -279,6 +326,11 @@ const _segmentLabelStyle = segmentLabelStyle
 	}
 
 	@media (max-width: 600px) {
+		.chart-main {
+			flex-direction: column;
+			align-items: center;
+		}
+
 		.chart-figure {
 			width: 150px;
 			height: 150px;
