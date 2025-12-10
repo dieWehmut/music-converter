@@ -1,6 +1,6 @@
 <template>
   <div class="app-shell" :class="{ 'no-sidebar': !isSidebarVisible }">
-    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" :styles-count="stylesCount" :styles="stylesArr" :recent-tasks="recentTasks" @scrollTo="handleScrollTo" @uploadFiles="handleUploadFiles" @toggleSidebar="toggleSidebar" />
+    <Sidebar :files="files" :active-id="activeId" :doc-headers="docHeaders" :styles-count="stylesCount" :styles="stylesArr" :emotions-count="emotionsCount" :emotions="emotionsArr" :recent-tasks="recentTasks" @scrollTo="handleScrollTo" @uploadFiles="handleUploadFiles" @toggleSidebar="toggleSidebar" />
 
     <div class="main">
       <Home ref="homeRef" />
@@ -39,6 +39,8 @@ const activeId = computed(() => homeRef.value?.activeId ?? '')
 const docHeaders = computed(() => homeRef.value?.docHeaders ?? [])
 const stylesArr = computed(() => homeRef.value?.styles ?? [])
 const stylesCount = computed(() => Array.isArray(stylesArr.value) ? stylesArr.value.length : 0)
+const emotionsArr = computed(() => homeRef.value?.emotions ?? [])
+const emotionsCount = computed(() => Array.isArray(emotionsArr.value) ? emotionsArr.value.length : 0)
 const recentTasks = computed(() => homeRef.value?.recentTasks ?? [])
 
 function toggleSidebar() {

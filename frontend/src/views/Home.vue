@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, toRaw, markRaw, watch, onUnmounted, computed } from 'vue'
 import { marked } from 'marked'
-import { getStyles, extractFeatures } from '../api/emotion'
+import { getStyles, getEmotions, extractFeatures } from '../api/emotion'
 import { convertAudio } from '../api/upload'
 import UploadAudio from '../components/UploadAudio.vue'
 import TargetEmotionSelector from '../components/TargetEmotionSelector.vue'
@@ -9,7 +9,9 @@ import EmotionResult from '../components/EmotionResult.vue'
 
 const files = ref([])
 const styles = ref([])
+const emotions = ref([])
 const selectedStyle = ref('')
+const selectedEmotion = ref('')
 const globalError = ref('')
 const activeId = ref('')
 const readmeHtml = ref('')
@@ -44,44 +46,13 @@ function escapeRegExp(string) {
  * If duplicates of `baseStyle` exist, convert existing unnumbered entries to `baseStyle(1)`
  * and assign sequential numbers to the new task (and any further duplicates).
  */
-function ensureUniqueStyleNames(item, baseStyle, newTask) {
+function ensureUniqueStyleNames(item, baseStyle, baseEmotion, newTask) {
+  // We no longer mutate stored style/emotion for numbering.
+  // Numbering is handled in the display layer so internal values remain canonical.
   if (!item) return
   if (!item.tasks) item.tasks = []
-  const tasks = item.tasks
-  const used = new Set()
-  const unnumberedIdx = []
-
-  const re = new RegExp('^' + escapeRegExp(baseStyle) + '\\((\\d+)\\)$')
-
-  for (let i = 0; i < tasks.length; i++) {
-    const s = tasks[i].style || ''
-    if (s === baseStyle) {
-      unnumberedIdx.push(i)
-    } else {
-      const m = s.match(re)
-      if (m) used.add(parseInt(m[1], 10))
-    }
-  }
-
-  // assign numbers to any unnumbered existing entries, choosing the smallest available ints
-  let nextNum = 1
-  for (const idx of unnumberedIdx) {
-    while (used.has(nextNum)) nextNum++
-    tasks[idx].style = `${baseStyle}(${nextNum})`
-    used.add(nextNum)
-    nextNum++
-  }
-
-  // determine style for the new task
-  if (used.size === 0 && unnumberedIdx.length === 0) {
-    // no existing duplicates at all
-    newTask.style = baseStyle
-  } else {
-    // pick the smallest available integer
-    while (used.has(nextNum)) nextNum++
-    newTask.style = `${baseStyle}(${nextNum})`
-    // used.add(nextNum) // not strictly necessary here
-  }
+  newTask.style = baseStyle
+  newTask.emotion = baseEmotion
 }
 
 function openDb() {
@@ -109,6 +80,7 @@ const recentTasks = computed(() => {
           taskId: t.id,
           fileName: f.name || '未命名',
           style: t.style || '',
+          emotion: t.emotion || '',
           status: t.status || '',
           createdAt: t.createdAt || null
         })
@@ -126,6 +98,7 @@ const recentTasks = computed(() => {
 // UI collapse state for dashboard sections
 const overviewCollapsed = ref(false)
 const stylesCollapsed = ref(false)
+const emotionsCollapsed = ref(false)
 const recentCollapsed = ref(false)
 
 function toggleOverview() {
@@ -134,6 +107,10 @@ function toggleOverview() {
 
 function toggleStyles() {
   stylesCollapsed.value = !stylesCollapsed.value
+}
+
+function toggleEmotions() {
+  emotionsCollapsed.value = !emotionsCollapsed.value
 }
 
 function toggleRecent() {
@@ -204,7 +181,7 @@ function handleRecentClick(t) {
 }
 
 // Expose reactive state to parent components (App.vue) after recentTasks is defined
-defineExpose({ files, activeId, docHeaders, styles, recentTasks })
+defineExpose({ files, activeId, docHeaders, styles, emotions, recentTasks })
 
 async function saveUpload(record) {
   const db = await openDb()
@@ -384,6 +361,7 @@ onMounted(async () => {
         name: record.name,
         localUrl: record.blob instanceof Blob ? URL.createObjectURL(record.blob) : '',
         selectedStyle: record.selectedStyle || '',
+        selectedEmotion: record.selectedEmotion || '',
         features: record.features || null,
         extracting: !!record.extracting,
         converting: false,
@@ -400,6 +378,7 @@ onMounted(async () => {
               }
               return {
                 ...task,
+                emotion: task.emotion || '',
                 resultUrl,
                 status: task.status,
                 active: false,
@@ -425,6 +404,7 @@ onMounted(async () => {
         item.tasks.push({
           id: Date.now().toString(36),
           style: record.selectedStyle || 'unknown',
+          emotion: record.selectedEmotion || 'unknown',
           status: 'success',
           createdAt: Date.now(),
           resultBlob: record.resultBlob,
@@ -461,6 +441,28 @@ onMounted(async () => {
   } catch (e) {
     console.warn('failed to load styles', e)
     globalError.value = '加载风格失败：' + (e.message || e)
+  }
+
+  try {
+    const res = await getEmotions()
+    emotions.value = Array.isArray(res) ? res : (res.emotions || [])
+    if (emotions.value.length) {
+      selectedEmotion.value = emotions.value[0]
+      // initialize per-item selectedEmotion when emotions become available
+      for (const it of files.value) {
+        if (!it.selectedEmotion) it.selectedEmotion = emotions.value[0]
+      }
+    }
+  } catch (e) {
+    console.warn('failed to load emotions', e)
+    // fallback
+    emotions.value = ["happy", "sad", "angry", "funny", "scary", "tender"]
+    if (emotions.value.length) {
+      selectedEmotion.value = emotions.value[0]
+      for (const it of files.value) {
+        if (!it.selectedEmotion) it.selectedEmotion = emotions.value[0]
+      }
+    }
   }
   
   await nextTick()
@@ -505,6 +507,7 @@ async function onFilesSelected(input) {
         name: item.name,
         blob: item.file,
         selectedStyle: item.selectedStyle || '',
+        selectedEmotion: item.selectedEmotion || '',
         features: null,
         extracting: true,
         tasks: []
@@ -522,6 +525,14 @@ function onStyleChange(item) {
     updateUpload(item.id, { selectedStyle: item.selectedStyle })
   } catch (e) {
     console.warn('updateUpload style failed', e)
+  }
+}
+
+function onEmotionChange(item) {
+  try {
+    updateUpload(item.id, { selectedEmotion: item.selectedEmotion })
+  } catch (e) {
+    console.warn('updateUpload emotion failed', e)
   }
 }
 
@@ -604,9 +615,9 @@ function toggleOriginalAnalysis(item) {
 async function runTask(item, taskProxy) {
   taskProxy.active = true
   try {
-    console.log('Starting conversion for', item.name, 'with style', taskProxy.style)
+    console.log('Starting conversion for', item.name, 'with style', taskProxy.style, 'emotion', taskProxy.emotion)
     
-    const blob = await convertAudio(item.file, taskProxy.style)
+    const blob = await convertAudio(item.file, taskProxy.style, taskProxy.emotion)
     console.log('Conversion success, blob size:', blob.size)
     
     const liveItem = files.value.find(f => f.id === item.id)
@@ -679,6 +690,7 @@ async function onConvertItem(item) {
   if (!reactiveItem.file) return (reactiveItem.error = '无有效音频')
   
   const styleToUse = reactiveItem.selectedStyle || selectedStyle.value
+  const emotionToUse = reactiveItem.selectedEmotion || selectedEmotion.value
 
   const resumableTask = reactiveItem.tasks.find(task => task.status === 'converting' && !task.active)
   if (resumableTask) {
@@ -690,6 +702,7 @@ async function onConvertItem(item) {
   const newTaskRaw = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     style: styleToUse,
+    emotion: emotionToUse,
     status: 'converting',
     createdAt: Date.now(),
     resultUrl: '',
@@ -702,7 +715,7 @@ async function onConvertItem(item) {
     active: true
   }
   // handle automatic numbering for duplicate styles
-  ensureUniqueStyleNames(reactiveItem, styleToUse, newTaskRaw)
+  ensureUniqueStyleNames(reactiveItem, styleToUse, emotionToUse, newTaskRaw)
 
   const newLength = reactiveItem.tasks.push(newTaskRaw)
   const taskProxy = reactiveItem.tasks[newLength - 1]
@@ -769,6 +782,16 @@ function removeTask(item, task) {
     updateUpload(reactiveItem.id, { tasks: serializeTasksForStorage(reactiveItem.tasks) }).catch(() => {})
   } catch (e) {}
 }
+
+// Display helper: show "style / emotion" and append (n) when multiple tasks in the same file share both
+function taskDisplayLabel(file, task) {
+  if (!file || !file.tasks) return `${task.style || '未设定风格'}${task.emotion ? ' / ' + task.emotion : ''}`
+  const same = file.tasks.filter(t => (t.style || '') === (task.style || '') && (t.emotion || '') === (task.emotion || ''))
+  const base = `style: ${task.style}${task.emotion ? ', emotion: ' + task.emotion : ''}`
+  if (same.length <= 1) return base
+  const idx = same.findIndex(t => t.id === task.id)
+  return `${base} (${idx + 1})`
+}
 </script>
 
 <template>
@@ -799,8 +822,8 @@ function removeTask(item, task) {
               <li data-section-id="dashboard.overview.style">
                 <span class="desc-bullet"></span>
                 <div class="desc-content">
-                  <strong>风格选择</strong>
-                  <span class="desc-text">从可用风格中选择目标风格，支持同一文件多次转换（系统会自动编号重复风格）。</span>
+                  <strong>风格与情绪选择</strong>
+                  <span class="desc-text">从可用风格和可用情绪中选择目标风格与目标情绪。支持同一文件多次转换；当且仅当风格与情绪都相同时系统才会对重复任务编号。</span>
                 </div>
               </li>
               <li data-section-id="dashboard.overview.preview">
@@ -862,6 +885,32 @@ function removeTask(item, task) {
           </transition>
         </div>
 
+        <div class="dashboard-emotions" data-section-id="dashboard.emotions">
+          <div class="section-header">
+            <h3 class="styles-title">可用情绪（emotions）</h3>
+            <button class="collapse-section-btn" :class="{ collapsed: emotionsCollapsed }" @click.stop="toggleEmotions" :aria-expanded="!emotionsCollapsed" title="收起/展开情绪列表">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </button>
+          </div>
+          <transition name="collapse">
+            <div v-show="!emotionsCollapsed">
+              <div v-if="emotions.length" class="styles-list-vertical">
+                <div
+                  v-for="(e, ei) in emotions"
+                  :key="e"
+                  class="style-row"
+                  :data-section-id="'dashboard.emotions.' + (ei + 1)"
+                >
+                  <span class="style-num">{{ ei + 1 }}</span>
+                  <span class="style-name">{{ e }}</span>
+                </div>
+              </div>
+              <div v-else-if="globalError" class="error">加载情绪失败：{{ globalError }}</div>
+              <div v-else>加载中…</div>
+            </div>
+          </transition>
+        </div>
+
         <div class="dashboard-recent" data-section-id="dashboard.recent">
           <div class="section-header">
             <h4 class="styles-title">最近任务</h4>
@@ -885,7 +934,7 @@ function removeTask(item, task) {
                   <span class="recent-task-index">({{ t.index }})</span>
                   <span class="recent-task-file">{{ t.fileName }}</span>
                   <span class="recent-task-sep">—</span>
-                  <span class="recent-task-style">{{ t.style }}</span>
+                  <span class="recent-task-style">{{ t.style }} <span v-if="t.emotion">/ {{ t.emotion }}</span></span>
                   <span class="status-dot" :class="t.status" :title="t.status" style="margin-left:8px"></span>
                   <span class="recent-task-time" v-if="formatRecentTime(t.createdAt)">{{ formatRecentTime(t.createdAt) }}</span>
                 </div>
@@ -917,7 +966,10 @@ function removeTask(item, task) {
                   <div class="file-index">{{ idx + 1 }}</div>
                   <div class="file-title-row">
                   <div class="file-title">{{ item.name }}</div>
-                  <TargetEmotionSelector v-model="item.selectedStyle" :styles="styles" @update:modelValue="onStyleChange(item)" />
+                  <div class="selectors-row" style="display:flex; gap:8px;">
+                    <TargetEmotionSelector v-model="item.selectedStyle" :styles="styles" placeholder="选择风格" @update:modelValue="onStyleChange(item)" />
+                    <TargetEmotionSelector v-model="item.selectedEmotion" :styles="emotions" placeholder="选择情绪" @update:modelValue="onEmotionChange(item)" />
+                  </div>
                 </div>
               </div>
               <div class="file-actions">
@@ -960,7 +1012,7 @@ function removeTask(item, task) {
                       <div class="task-item" :data-task-id="task.id">
                         <div class="task-header">
                           <span class="task-index">({{ tIdx + 1 }})</span>
-                          <span class="task-style">目标风格: {{ task.style }}</span>
+                            <span class="task-style">{{ taskDisplayLabel(item, task) }}</span>
                           <span class="task-status" :class="task.status">
                             {{ task.status === 'converting' ? '转换中...' : task.status === 'success' ? '成功' : '失败' }}
                           </span>
