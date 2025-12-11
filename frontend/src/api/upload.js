@@ -16,7 +16,8 @@ export async function convertAudio(file, style, emotion, options = {}) {
   if (style) form.append('style', style)
   if (emotion) form.append('emotion', emotion)
 
-  const { pollIntervalMs = 1200, timeoutMs = 60000 } = options
+  // Defaults: poll every 2s, no timeout by default (set timeoutMs to a number to enable)
+  const { pollIntervalMs = 2000, timeoutMs = null } = options
 
   // Start conversion - backend returns JSON { task_id, status }
   const res = await postForm('/api/convert', form)
@@ -26,7 +27,7 @@ export async function convertAudio(file, style, emotion, options = {}) {
   const start = Date.now()
   // Poll until success or failed or timeout
   while (true) {
-    if (Date.now() - start > timeoutMs) throw new Error('Conversion timed out')
+    if (timeoutMs && Date.now() - start > timeoutMs) throw new Error('Conversion timed out')
     let statusResp
     try {
       statusResp = await getJson(`/api/tasks/${taskId}`)
