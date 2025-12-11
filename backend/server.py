@@ -10,6 +10,7 @@ import logging
 import os
 import time
 
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 app = FastAPI(title="Music Converter - Dev API")
 
 # In-memory task store
