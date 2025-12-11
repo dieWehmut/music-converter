@@ -40,6 +40,7 @@ __pycache__/
 # Vitest
 __screenshots__/
 .venv/
+venv/
 .idea/
 __pycache__/
 *.pyc
@@ -50,3 +51,4 @@ __pycache__/
 *.m4a
 *.aac
 output/
+server.log
