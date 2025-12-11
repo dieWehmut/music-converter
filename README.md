@@ -20,10 +20,13 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
   - [本地测试指南](#本地测试指南)
     - [测试后端](#测试后端)
     - [测试前端](#测试前端)
+    - [常见 API 示例（curl）](#常见-api-示例curl)
   - [后端服务说明 (生产环境部署)](#后端服务说明-生产环境部署)
   - [前端运行与构建](#前端运行与构建)
   - [API 说明与异步任务流程](#api-说明与异步任务流程)
     - [异步任务流程](#异步任务流程)
+    - [响应字段说明](#响应字段说明)
+    - [环境变量清单（常用）](#环境变量清单常用)
   - [开发提示](#开发提示)
   - [故障排查](#故障排查)
   - [Third-Party Notice](#third-party-notice)
@@ -111,6 +114,8 @@ pip install -r requirements.txt
   2. 解压至 `backend/models/yamnet/`。
   3. 确保目录结构为：`backend/models/yamnet/saved_model.pb`。
 
+注意：在 `MC_DEV_MODE=1` 时，系统会返回伪造的分析结果，从而跳过模型加载，适合无 GPU 或受限网络环境下的前端调试。
+
 ## 前端依赖
 
 进入 `frontend` 并安装依赖：
@@ -147,6 +152,55 @@ npm install
    ```
    默认开发地址为 `http://localhost:5173`。
 3. 浏览器访问页面测试功能。
+
+### 常见 API 示例（curl）
+
+1) 健康检查
+```bash
+curl http://localhost:8000/health
+```
+
+2) 请求音频特征（分析）
+```bash
+curl -X POST -F "file=@/path/to/audio.wav" http://localhost:8000/api/features
+```
+返回示例：
+```
+{
+  "styles": [{"name": "pop", "prob": 0.62}],
+  "emotions": [{"name": "happy", "prob": 0.81}],
+  "duration": 12.5
+}
+```
+
+3) 发起转换任务（异步）
+```bash
+curl -X POST -F "file=@/path/to/audio.wav" -F "style=pop" -F "emotion=happy" http://localhost:8000/api/convert
+```
+返回示例：
+```
+{
+  "task_id": "01234567",
+  "status": "pending",
+  "message": "Processing started"
+}
+```
+
+4) 查询任务状态
+```bash
+curl http://localhost:8000/api/tasks/01234567
+```
+返回示例：
+```
+{
+  "task_id": "01234567",
+  "status": "success",
+  "result": {
+    "file": "/api/tasks/01234567/download",
+    "duration": 15.0
+  }
+}
+```
 
 ## 后端服务说明 (生产环境部署)
 
@@ -196,7 +250,7 @@ npm run dev
    ```
    构建完成后，可将 `dist` 目录内的文件上传至 Nginx 的静态资源目录 (`/var/www/html`) 或其他静态托管服务。
    **注意**：手动构建前，请确保配置文件中的 API 地址已指向正确的生产环境后端。
-```
+   ```
 
 ## API 说明与异步任务流程
 
@@ -218,6 +272,19 @@ npm run dev
 3. 前端轮询 `/api/tasks/{task_id}`。
 4. 状态变为 `success` 时，调用下载接口获取结果文件。
 
+### 响应字段说明
+
+- `task_id`: 内部任务 id，用于查询状态与下载。
+- `status`: `pending` / `processing` / `success` / `failed`。
+- `message`: 可选的错误或进度信息。
+- `result.file`: 下载链接（若 `status === success`）。
+
+### 环境变量清单（常用）
+- `MC_DEV_MODE`: 设置为 `1` 时启用 DEV 模式，返回伪造数据并跳过模型加载。
+- `HF_ENDPOINT`: 指定 Hugging Face 镜像地址用于模型下载。
+- `ALLOW_ORIGINS`: 可指定前端允许的 CORS 域列表（在 `server.py` 中解析）。
+- `PORT`: 服务端口（默认 8000）。
+
 ## 开发提示
 
 - **IndexedDB 缓存**：位于 `frontend/src/views/Home.vue`，可避免刷新导致任务丢失。
@@ -236,6 +303,15 @@ npm run dev
   检查前端域名是否已添加到 `server.py` 的 `allow_origins` 列表。
 - **Mixed Content 错误**：
   前端是 HTTPS，后端是 HTTP。请配置 Nginx + SSL 证书，使后端支持 HTTPS。
+
+- **上传失败 / 413 Payload Too Large**：
+  - Nginx 或前端上传配置可能限制了文件大小。请检查 Nginx 的 `client_max_body_size` 和前端的上传限制（通常在 HTML `input` 或 JS 里设置）。
+
+- **权限/路径错误**：
+  - `backend/output` 目录需要有写入权限（进程用户）。若发生权限错误，改变目录权限或修改 `server.py` 中的输出路径。
+
+- **内存不足（Killed）**：
+  - 如果启动模型时出现 `Killed`，说明服务内存不足。建议增加 swap 或使用机器内存更大的环境，或者启用 `MC_DEV_MODE` 跳过模型加载。
 
 ## Third-Party Notice
 
