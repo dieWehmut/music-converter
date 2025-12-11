@@ -617,7 +617,8 @@ async function runTask(item, taskProxy) {
   try {
     console.log('Starting conversion for', item.name, 'with style', taskProxy.style, 'emotion', taskProxy.emotion)
     
-    const blob = await convertAudio(item.file, taskProxy.style, taskProxy.emotion)
+    // no timeout (backend will eventually produce result)
+    const blob = await convertAudio(item.file, taskProxy.style, taskProxy.emotion, { pollIntervalMs: 2000, timeoutMs: null })
     console.log('Conversion success, blob size:', blob.size)
     
     const liveItem = files.value.find(f => f.id === item.id)
