@@ -105,12 +105,25 @@ function scrollToPrevMain() {
   }
 }
 
-function scrollToThirdParty() {
-  // Find the README header whose text matches "Third-Party Notice"
+function scrollToThirdParty(idFromFooter) {
+  // If footer provides an explicit id, try it first (Footer may emit an id)
+  if (idFromFooter) {
+    // quick existence check before committing to the id
+    let el = document.getElementById(idFromFooter) || document.querySelector(`[data-doc-header="${idFromFooter}"]`) || document.querySelector(`[data-section-id="${idFromFooter}"]`)
+    if (el) {
+      handleScrollTo(idFromFooter)
+      return
+    }
+    // otherwise fall through to the standard fallback search
+  }
+
+  // Try English header first, then fall back to Chinese variant used in README.md
   const target = docHeaders.value.find(h => h.text === 'Third-Party Notice')
     || docHeaders.value.find(h => h.id === 'third-party-notice')
+    || docHeaders.value.find(h => h.text === '第三方说明')
+    || docHeaders.value.find(h => h.id === '第三方说明')
 
-  const id = target?.id || 'third-party-notice'
+  const id = target?.id || '第三方说明' || 'third-party-notice'
   handleScrollTo(id)
 }
 

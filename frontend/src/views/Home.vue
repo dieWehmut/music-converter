@@ -1,6 +1,11 @@
 <script setup>
 import { ref, onMounted, nextTick, toRaw, markRaw, watch, onUnmounted, computed } from 'vue'
 import { marked } from 'marked'
+import readmeText from '../../../README.md?raw'
+import readmeZhCn from '../../../docs/README.zh-CN.md?raw'
+import readmeZhTw from '../../../docs/README.zh-TW.md?raw'
+import readmeEn from '../../../docs/README.en.md?raw'
+import readmeJa from '../../../docs/README.ja.md?raw'
 import { getStyles, getEmotions, extractFeatures } from '../api/emotion'
 import { convertAudio } from '../api/upload'
 import UploadAudio from '../components/UploadAudio.vue'
@@ -163,8 +168,36 @@ async function scrollToTask(id) {
 
   if (!el) el = document.querySelector(`[data-file-id="${id}"]`)
   if (!el) el = document.querySelector(`[data-section-id="${id}"]`)
+  
+  // Try finding doc header by ID (most reliable for headers)
+  if (!el) el = document.getElementById(id)
+  // Fallback to data attribute
+  if (!el) el = document.querySelector(`[data-doc-header="${id}"]`)
+  
+  // Fallback: try to find header by text content if ID fails (fuzzy match)
+  if (!el) {
+     const headers = document.querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4')
+     for (const h of headers) {
+       if (h.id === id) {
+         el = h
+         break
+       }
+       // Check if the header text roughly matches the ID (ignoring case and special chars)
+       const text = h.textContent.toLowerCase().trim().replace(/[\s]+/g, '-').replace(/[^\w\u4e00-\u9fa5-]/g, '')
+       if (text === id) {
+         el = h
+         break
+       }
+     }
+  }
+
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  } else {
+    console.warn('scrollToTask: target not found for id:', id)
+    // Debug: list all header IDs
+    // const allIds = Array.from(document.querySelectorAll('[id]')).map(e => e.id)
+    // console.log('Available IDs:', allIds)
   }
 }
 
@@ -283,7 +316,144 @@ onUnmounted(() => {
   if (observer) observer.disconnect()
 })
 
+let tocBuffer = []
+const headingCounters = [0, 0, 0, 0, 0, 0]
+
+const mdRenderer = {
+  heading({ text, depth, raw }) {
+    const id = raw.toLowerCase().trim().replace(/[\s]+/g, '-').replace(/[^\w\u4e00-\u9fa5-]/g, '')
+    
+    if (depth >= 1 && depth <= 6) {
+      headingCounters[depth - 1]++
+      for (let i = depth; i < 6; i++) headingCounters[i] = 0
+      
+      let number = '3'
+      for (let i = 0; i < depth; i++) {
+        number += '.' + headingCounters[i]
+      }
+      tocBuffer.push({ id, text, level: depth, number })
+    }
+    
+    return `<h${depth} id="${id}" data-doc-header="${id}">${text}</h${depth}>`
+  },
+  code({ text, lang }) {
+    const escapedText = text.replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    const langClass = lang ? `language-${lang}` : '';
+    const langAttr = lang ? ` data-lang="${lang}"` : '';
+    return `<div class="code-wrapper"><button class="copy-btn">Copy</button><pre${langAttr}><code class="${langClass}">${escapedText}</code></pre></div>`
+  }
+}
+
+marked.use({ renderer: mdRenderer })
+
+const README_LANG_STORAGE_KEY = 'music-converter:readme-lang'
+const readmeLang = ref('root')
+
+function getReadmeTextByLang(lang) {
+  switch (lang) {
+    case 'zh-CN':
+      return readmeZhCn
+    case 'zh-TW':
+      return readmeZhTw
+    case 'en':
+      return readmeEn
+    case 'ja':
+      return readmeJa
+    case 'root':
+    default:
+      return readmeText
+  }
+}
+
+function persistReadmeLang(lang) {
+  try {
+    localStorage.setItem(README_LANG_STORAGE_KEY, lang)
+  } catch (e) {
+    // ignore (private mode / storage disabled)
+  }
+}
+
+function loadPersistedReadmeLang() {
+  try {
+    return localStorage.getItem(README_LANG_STORAGE_KEY)
+  } catch (e) {
+    return null
+  }
+}
+
+function applyReadmeLang(lang) {
+  const normalized = lang || 'root'
+  readmeLang.value = normalized
+  persistReadmeLang(normalized)
+  updateReadme(getReadmeTextByLang(normalized))
+}
+
+function updateReadme(text) {
+  tocBuffer = []
+  for(let i=0; i<6; i++) headingCounters[i] = 0
+  try {
+    readmeHtml.value = marked.parse(text)
+    docHeaders.value = [...tocBuffer]
+    // README content is injected via v-html; re-register scroll observers after DOM updates.
+    nextTick(() => observeElements())
+  } catch (e) {
+    console.error('Failed to parse README:', e)
+  }
+}
+
 function handleMarkdownClick(e) {
+  const link = e.target.closest('a')
+  if (link) {
+    const href = link.getAttribute('href')
+    
+    // Handle language switching
+    if (href) {
+      if (href.includes('README.zh-CN.md')) {
+        e.preventDefault()
+        applyReadmeLang('zh-CN')
+        return
+      }
+      if (href.includes('README.zh-TW.md')) {
+        e.preventDefault()
+        applyReadmeLang('zh-TW')
+        return
+      }
+      if (href.includes('README.en.md')) {
+        e.preventDefault()
+        applyReadmeLang('en')
+        return
+      }
+      if (href.includes('README.ja.md')) {
+        e.preventDefault()
+        applyReadmeLang('ja')
+        return
+      }
+      // Handle root README (Simplified Chinese default)
+      // Matches "../README.md" or just "README.md" if not in docs
+      if (href.endsWith('README.md') && !href.includes('docs/')) {
+        e.preventDefault()
+        applyReadmeLang('root')
+        return
+      }
+    }
+
+    if (href && href.startsWith('#')) {
+      e.preventDefault()
+      const id = href.substring(1)
+      let decodedId = id
+      try { decodedId = decodeURIComponent(id) } catch (e) {}
+      
+      console.log('Markdown link clicked:', href, 'ID:', id, 'Decoded:', decodedId)
+      scrollToTask(decodedId)
+      history.pushState(null, null, href)
+      return
+    }
+  }
+
   if (e.target.classList.contains('copy-btn')) {
     const btn = e.target
     const pre = btn.nextElementSibling
@@ -302,53 +472,8 @@ function handleMarkdownClick(e) {
 }
 
 onMounted(async () => {
-  const toc = []
-  const counters = [0, 0, 0, 0, 0, 0]
-  
-  const renderer = {
-    heading({ text, depth, raw }) {
-      const id = raw.toLowerCase().trim().replace(/[\s]+/g, '-').replace(/[^\w\u4e00-\u9fa5-]/g, '')
-      
-      if (depth >= 1 && depth <= 6) {
-        counters[depth - 1]++
-        for (let i = depth; i < 6; i++) counters[i] = 0
-        
-        let number = '3'
-        for (let i = 0; i < depth; i++) {
-          number += '.' + counters[i]
-        }
-        toc.push({ id, text, level: depth, number })
-      }
-      
-      return `<h${depth} id="${id}" data-doc-header="${id}">${text}</h${depth}>`
-    },
-    code({ text, lang }) {
-      const escapedText = text.replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-      const langClass = lang ? `language-${lang}` : '';
-      const langAttr = lang ? ` data-lang="${lang}"` : '';
-      return `<div class="code-wrapper"><button class="copy-btn">Copy</button><pre${langAttr}><code class="${langClass}">${escapedText}</code></pre></div>`
-    }
-  }
-  
-  marked.use({ renderer })
-  
-  try {
-    const res = await fetch('https://api.github.com/repos/dieWehmut/music-converter/readme', {
-      headers: { 'Accept': 'application/vnd.github.raw' }
-    })
-    if (res.ok) {
-      const text = await res.text()
-      readmeHtml.value = marked.parse(text)
-    }
-  } catch (e) {
-    console.error('Failed to fetch README:', e)
-  }
-
-  docHeaders.value = toc
+  // Load persisted README language (falls back to root README)
+  applyReadmeLang(loadPersistedReadmeLang() || 'root')
 
   // load cached uploads first
   try {
