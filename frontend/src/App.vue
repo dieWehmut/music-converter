@@ -117,13 +117,46 @@ function scrollToThirdParty(idFromFooter) {
     // otherwise fall through to the standard fallback search
   }
 
-  // Try English header first, then fall back to Chinese variant used in README.md
-  const target = docHeaders.value.find(h => h.text === 'Third-Party Notice')
-    || docHeaders.value.find(h => h.id === 'third-party-notice')
-    || docHeaders.value.find(h => h.text === '第三方说明')
-    || docHeaders.value.find(h => h.id === '第三方说明')
 
-  const id = target?.id || '第三方说明' || 'third-party-notice'
+  // Try a few candidate ids/texts (handle plural/singular and localized text)
+  const candidates = [
+    'third-party-notices',
+    'third-party-notice',
+    '第三方說明',
+    '第三方说明',
+    'サードパーティに関する表示'
+  ]
+
+  // 1) try exact id match in docHeaders
+  let target = null
+  for (const c of candidates) {
+    target = docHeaders.value.find(h => h.id === c)
+    if (target) break
+  }
+
+  // 2) try exact text match (case-insensitive)
+  if (!target) {
+    for (const c of candidates) {
+      target = docHeaders.value.find(h => (h.text || '').toLowerCase() === c.toLowerCase())
+      if (target) break
+    }
+  }
+
+  // 3) fuzzy match: look for English headers containing keywords
+  if (!target) {
+    target = docHeaders.value.find(h => {
+      const txt = (h.text || '').toLowerCase()
+      // English fuzzy
+      if (txt.includes('third') && txt.includes('party') && (txt.includes('notice') || txt.includes('notices'))) return true
+      // Simplified/Traditional Chinese fuzzy
+      if ((h.text || '').includes('第三方')) return true
+      // Japanese fuzzy: check for common fragments
+      if ((h.text || '').includes('サード') && (h.text || '').includes('パーティ')) return true
+      return false
+    })
+  }
+
+  const id = target?.id || candidates[0]
   handleScrollTo(id)
 }
 
