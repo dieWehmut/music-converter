@@ -63,7 +63,7 @@ class MusicGenerator:
 
     def generate_with_melody(
         self, prompt, melody_path, output_path,
-        target_seconds=20.0,
+        target_seconds=30.0,
         guidance_scale=3.0,
         temperature=1.0,
         top_p=0.95,
@@ -108,6 +108,25 @@ class MusicGenerator:
         if np.max(np.abs(audio)) > 1e-6:
             audio = audio / np.max(np.abs(audio)) * 0.98
 
-        sf.write(output_path, audio, 32000)
-        print(f"[MusicGen] Saved: {output_path}")
-        return output_path
+        # Ensure parent directory exists
+        try:
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        try:
+            sf.write(output_path, audio, 32000)
+            print(f"[MusicGen] Saved: {output_path}")
+            return output_path
+        except Exception as e:
+            print(f"[MusicGen] soundfile write failed: {e}")
+            # Fallback: try scipy.io.wavfile (write int16 PCM)
+            try:
+                from scipy.io import wavfile
+                scaled = (audio * 32767.0).clip(-32768, 32767).astype('int16')
+                wavfile.write(str(output_path), 32000, scaled)
+                print(f"[MusicGen] Saved via scipy.io.wavfile: {output_path}")
+                return output_path
+            except Exception as e2:
+                print(f"[MusicGen] fallback wav write failed: {e2}")
+                raise
