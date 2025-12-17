@@ -108,30 +108,34 @@ music-converter/
 │   ├── features/ — 音频特征提取相关代码目录
 │   │   └── yamnet_extract.py — 封装 YAMNet，提供 embedding 与类别概率提取
 │   ├── inference/ — 推理与生成管线核心模块（分析 → 提示 → 生成 → 后处理）
-│   │   ├── full_pipeline.py — `FullMusicPipeline`：协调分析、提示构建与生成的高阶类
+│   │   ├── full_pipeline.py — 协调分析、提示构建与生成的高阶类
 │   │   ├── generate_music.py — 与 MusicGen 交互，加载模型并保存生成音频
 │   │   ├── analyze.py — 组合分析流程，调用特征提取与分类器并组织输出
-│   │   ├── emotion_recognition.py — 情绪识别封装，返回情绪标签与置信度
 │   │   ├── melody_extractor.py — 提取主旋律/音高序列的工具
-│   │   ├── melody_scorer.py — 对旋律或生成结果做相似度/质量评分
-│   │   ├── melody_transformer.py — 将旋律变换为目标风格的逻辑
-│   │   ├── prompt_builder.py — 构建传给 MusicGen 的 prompt
-│   │   └── style_recognition.py — 风格识别封装，返回风格标签及置信度
+│   │   ├── ...
+│   │   └── prompt_builder.py — 构建传给 MusicGen 的 prompt
 │   ├── models/ — 模型存放（可离线放置模型权重）
-│   │   ├── yamnet/ — YAMNet 离线模型
-│   │   └── ... 
+│   │   ├── ...
+│   │   └── yamnet/ — YAMNet 离线模型
 │   └── utils/ — 各类辅助函数
 ├── frontend/
-│   ├── src/
-│   │   ├── views/
-│   │   │   └── Home.vue — 主页面
-│   │   ├── api/
-│   │   │   ├── index.js — API 基础客户端，配置 `baseURL` 与统一请求封装
-│   │   │   ├── emotion.js — 封装获取情绪标签的调用
-│   │   │   └── upload.js — 封装文件上传、启动转换与查询任务状态的 API
-│   │   └── ...
-│   └── ...
-└── ...
+│   ├── index.html
+│   ├── ...
+│   └── src/
+│       ├── components/
+│       ├── views/
+│       │   └── Home.vue — 主页面
+│       ├── ...
+│       └──api/
+│          ├── index.js — API 基础客户端，配置 `baseURL` 与统一请求封装
+│          ├── emotion.js — 封装获取情绪标签的调用
+│          └── upload.js — 封装文件上传、启动转换与查询任务状态的 API
+├── ...
+├── docs/ 
+├── LICENSE 
+├── Colab-music-converter.ipynb — Colab 笔记本，用于在线体验
+├── Dockerfile — Docker 容器化配置
+└── README.md — 项目说明文档
 ```
 
 ## 环境要求
@@ -267,27 +271,66 @@ curl http://localhost:8000/api/tasks/01234567
 
 ### 后端部署
 
-在服务器上长期运行时，建议配合 `nohup` 和 Nginx。
+在服务器上长期运行时，建议配合 `nohup` 保持后台运行，并配置 Nginx 进行反向代理。
 
-1. **激活环境**：`source venv/bin/activate` 或 `conda activate mc-env`
-2. **启动服务 (后台运行)**：
-   **注意**：请在项目根目录（`music-converter`）下运行，以确保模块路径正确。
-   ```sh
-   # 示例：后台启动并将日志输出到 server.log
-   nohup python3 -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-   ```
-3. **Nginx 反向代理 (推荐)**：
-   建议配置 Nginx 处理 HTTPS 及大文件上传限制。
-   ```nginx
-   server {
-       listen 80;
-       server_name api.your-domain.com;
-       location / {
-           proxy_pass http://127.0.0.1:8000;
-           client_max_body_size 50M; # 允许大音频文件
-       }
-   }
-   ```
+**前提**：请确保当前处于项目根目录（例如 `/root/music-converter`），而不是 `backend` 内部。
+
+**启动服务 (标准流程)**
+
+为了防止环境丢失导致 `ModuleNotFoundError`，建议按以下步骤操作：
+
+```bash
+# 1. 杀掉旧进程 (防止端口冲突)
+pkill -f uvicorn
+
+# 2. 激活虚拟环境 (根据你的安装方式选一个)
+# Linux/macOS (venv):
+source backend/venv/bin/activate
+# Windows:
+# backend\venv\Scripts\activate
+# Conda:
+# conda activate mc-env
+
+# 3. 启动服务 (后台运行)
+# 注意：必须加上 -m uvicorn 以确保 python 能找到包
+nohup python3 -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+
+# ★ 稳妥启动技巧 (推荐) ★
+# 如果发现 nohup 报错找不到模块，请直接指定虚拟环境 python 的绝对路径运行：
+# nohup /path/to/venv/bin/python3 -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+```
+
+**验证运行**
+
+```bash
+# 查看实时日志
+tail -f server.log
+```
+当看到 `INFO: Application startup complete.` 时，说明服务启动成功。
+
+**Nginx 反向代理 (推荐)**
+
+建议配置 Nginx 处理 HTTPS、域名转发及大文件上传限制。
+
+配置文件示例 (`/etc/nginx/conf.d/music-backend.conf`)：
+
+```nginx
+server {
+    listen 80;
+    server_name api.your-domain.com; # 替换为你的域名
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        
+        # [关键] 允许 50MB 音频文件上传，防止 413 Entity Too Large 错误
+        client_max_body_size 50M; 
+    }
+}
+```
+
 
 ### 前端部署
 
