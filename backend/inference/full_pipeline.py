@@ -196,139 +196,152 @@ class FullMusicPipeline:
     # Main process
     # ----------------------------------
     def process(self, audio_path, target_style, target_emotion,
-                output_dir="backend/output", max_attempts=4):
+                    output_dir="backend/output", max_attempts=4):
 
-        audio_path = Path(audio_path)
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+            audio_path = Path(audio_path)
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            print("🔍 Analyzing original audio…")
+            orig = self.analyzer.analyze(str(audio_path))
+            print(f"🎵 Original Style:   {orig['style']}")
+            print(f"😊 Original Emotion: {orig['emotion']}")
 
-        # ======================================================
-        # ★★★ 新增：打印原音乐 style / emotion
-        # ======================================================
-        print("🔍 Analyzing original audio…")
-        orig = self.analyzer.analyze(str(audio_path))
-        print(f"🎵 Original Style:   {orig['style']}")
-        print(f"😊 Original Emotion: {orig['emotion']}")
+            # 如果未指定目标，则默认保持原样
+            if not target_style:
+                target_style = orig['style']
+                print(f"👉 Target Style not specified, using original: {target_style}")
+            
+            if not target_emotion:
+                target_emotion = orig['emotion']
+                print(f"👉 Target Emotion not specified, using original: {target_emotion}")
 
-        # 如果未指定目标，则默认保持原样
-        if not target_style:
-            target_style = orig['style']
-            print(f"👉 Target Style not specified, using original: {target_style}")
-        
-        if not target_emotion:
-            target_emotion = orig['emotion']
-            print(f"👉 Target Emotion not specified, using original: {target_emotion}")
+            # =========== 修改点：计算动态生成时长 ===========
+            try:
+                # 预读取音频获取时长
+                y_tmp, sr_tmp = librosa.load(str(audio_path), sr=32000)
+                input_duration = librosa.get_duration(y=y_tmp, sr=sr_tmp)
+                
+                # 目标时长 = min(原曲时长, 30.0秒)
+                # 这样 12秒的歌只会生成 12秒，不会强行生成 30秒
+                target_gen_seconds = min(input_duration, 30.0)
+                print(f"🕒 Input Duration: {input_duration:.2f}s | Target Generation: {target_gen_seconds:.2f}s")
+            except Exception as e:
+                print(f"⚠️ Duration check failed: {e}, fallback to 30.0s")
+                target_gen_seconds = 30.0
+            # ==============================================
 
-        # --- Melody info ---
-        print("\n🎼 Extracting melody info…")
-        try:
-            melody_info = self.build_melody_info(str(audio_path))
-        except Exception as e:
-            print("[WARN] melody info failed:", e)
-            melody_info = {
-                "key": "unknown",
-                "pitch_range": 0,
-                "hook_score": 0,
-                "rhythm_score": 0,
-                "scale_corr": 0,
-                "contour_score": 0,
-            }
+            # --- Melody info ---
+            print("\n🎼 Extracting melody info…")
+            try:
+                melody_info = self.build_melody_info(str(audio_path))
+            except Exception as e:
+                print("[WARN] melody info failed:", e)
+                melody_info = {
+                    "key": "unknown",
+                    "pitch_range": 0,
+                    "hook_score": 0,
+                    "rhythm_score": 0,
+                    "scale_corr": 0,
+                    "contour_score": 0,
+                }
+            
+            best_score = -1
+            best_output = None
+            best_result = None
 
-        # ======================================================
-        # ★★★ 新增：best-of 初始化
-        # ======================================================
-        best_score = -1
-        best_output = None
-        best_result = None
+            print("\n🎶 Multi-attempt generation…")
+            for attempt in range(1, max_attempts + 1):
 
-        print("\n🎶 Multi-attempt generation…")
-        for attempt in range(1, max_attempts + 1):
+                print(f"\n========== Attempt {attempt}/{max_attempts} ==========")
 
-            print(f"\n========== Attempt {attempt}/{max_attempts} ==========")
+                # --- prompt ---
+                prompt = self.prompt_builder.build_prompt(
+                    melody_info=melody_info,
+                    target_style=target_style,
+                    target_emotion=target_emotion,
+                    attempt=attempt,
+                    creativity=1.0,
+                )
 
-            # --- prompt ---
-            prompt = self.prompt_builder.build_prompt(
-                melody_info=melody_info,
-                target_style=target_style,
-                target_emotion=target_emotion,
-                attempt=attempt,
-                creativity=1.0,
-            )
+                print("\n🧠 Prompt:")
+                print(prompt)
 
-            print("\n🧠 Prompt:")
-            print(prompt)
+                # --- melody extract ---
+                # 注意：这里的 extract_melody_to_wav 会调用上面改过的 _find_best_window
+                # 所以它会自动处理短音频，不会报错
+                raw = self.melody_extractor.extract_melody_to_wav(
+                    str(audio_path),
+                    target_style=target_style,
+                    target_emotion=target_emotion,
+                    strength=0.9,
+                    output_path=output_dir / f"melody_attempt_{attempt}.wav",
+                    weaken_level=attempt - 1,
+                )
 
-            # --- melody extract ---
-            raw = self.melody_extractor.extract_melody_to_wav(
-                str(audio_path),
-                target_style=target_style,
-                target_emotion=target_emotion,
-                strength=0.9,
-                output_path=output_dir / f"melody_attempt_{attempt}.wav",
-                weaken_level=attempt - 1,
-            )
+                # --- melody transform ---
+                transformed = self.melody_transformer.transform(
+                    raw,
+                    attempt=attempt,
+                    prev_score=best_score,
+                )
 
-            # --- melody transform ---
-            transformed = self.melody_transformer.transform(
-                raw,
-                attempt=attempt,
-                prev_score=best_score,
-            )
+                # --- generate ---
+                out_file = output_dir / f"generated_attempt_{attempt}.wav"
+                print("\n🎧 Generating MusicGen output…")
 
-            # --- generate ---
-            out_file = output_dir / f"generated_attempt_{attempt}.wav"
-            print("\n🎧 Generating MusicGen output…")
+                self.music_gen.generate_with_melody(
+                    prompt=prompt,
+                    melody_path=str(transformed),
+                    output_path=str(out_file),
+                    
+                    # =========== 修改点：传入动态时长 ===========
+                    target_seconds=target_gen_seconds, 
+                    # ==========================================
+                    
+                    guidance_scale=self.guidance_for_attempt(attempt),
+                    temperature=1.0,
+                    top_p=0.95,
+                    do_sample=True,
+                )
 
-            self.music_gen.generate_with_melody(
-                prompt=prompt,
-                melody_path=str(transformed),
-                output_path=str(out_file),
-                target_seconds=15.0,
-                guidance_scale=self.guidance_for_attempt(attempt),
-                temperature=1.0,
-                top_p=0.95,
-                do_sample=True,
-            )
+                # --- analyze ---
+                gen = self.analyzer.analyze(str(out_file))
 
-            # --- analyze ---
-            gen = self.analyzer.analyze(str(out_file))
+                # --- score ---
+                score_info = compute_final_score(orig, gen, target_style, target_emotion)
+                score_total = score_info["total"]
 
-            # --- score ---
-            score_info = compute_final_score(orig, gen, target_style, target_emotion)
-            score_total = score_info["total"]
+                print("\n📊 Score Breakdown:")
+                print(f"  Total Score:  {score_total:.2f} / 100")
+                print(f"  Style Gain:   {score_info['style_gain']:+.3f}")
+                print(f"  Emotion Gain: {score_info['emotion_gain']:+.3f}")
+                print(f"  Escape:       {score_info['escape']:+.3f}")
+                print(f"  JS Diverg.:   {score_info['js']:.3f}")
+                print(f"  Confidence:   {score_info['confidence']:.3f}")
+                
+                if score_total > best_score:
+                    best_score = score_total
+                    best_output = str(out_file)
+                    best_result = gen
 
-            print("\n📊 Score Breakdown:")
-            print(f"  Total Score:  {score_total:.2f} / 100")
-            print(f"  Style Gain:   {score_info['style_gain']:+.3f}")
-            print(f"  Emotion Gain: {score_info['emotion_gain']:+.3f}")
-            print(f"  Escape:       {score_info['escape']:+.3f}")
-            print(f"  JS Diverg.:   {score_info['js']:.3f}")
-            print(f"  Confidence:   {score_info['confidence']:.3f}")
+                # --- early stop ---
+                if score_total >= 90:
+                    print("✨ High-quality result achieved (A+). Early stop.")
+                    break
 
-            # ======================================================
-            # ★★★ 新增：best-of，仅 3 行
-            # ======================================================
-            if score_total > best_score:
-                best_score = score_total
-                best_output = str(out_file)
-                best_result = gen
+            print("\n🎉 Final Result")
+            print("Best Score:", best_score)
+            if best_result is not None:
+                print("Best Style:", best_result.get("style"))
+                print("Best Emotion:", best_result.get("emotion"))
+            else:
+                print("Best Style: N/A")
+                print("Best Emotion: N/A")
+            print("Best File:", best_output)
 
-            # --- early stop（你的逻辑，不动） ---
-            if score_total >= 90:
-                print("✨ High-quality result achieved (A+). Early stop.")
-                break
+            return best_output
 
-        print("\n🎉 Final Result")
-        print("Best Score:", best_score)
-        if best_result is not None:
-            print("Best Style:", best_result.get("style"))
-            print("Best Emotion:", best_result.get("emotion"))
-        else:
-            print("Best Style: N/A")
-            print("Best Emotion: N/A")
-        print("Best File:", best_output)
-
-        return best_output
 
 
 # ============================================================
