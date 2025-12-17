@@ -17,7 +17,13 @@
       </div>
     </div>
 
-    <div class="toc-body" ref="tocBody">
+    <div
+      class="toc-body"
+      ref="tocBody"
+      @wheel.passive="markTocUserInteraction"
+      @touchstart.passive="markTocUserInteraction"
+      @pointerdown.passive="markTocUserInteraction"
+    >
       <!-- Section 1: Dashboard -->
       <div class="toc-section">
         <div 
@@ -347,26 +353,81 @@
 
         <transition name="collapse">
           <div v-show="!collapsedIds.has('readme')" v-if="docHeaders.length" class="toc-group">
-            <div
-              v-for="(header, hIdx) in visibleDocHeaders"
-              :key="header.id"
-              class="toc-row doc-row"
-              :class="[
-                { active: activeId === header.id },
-                'level-' + header.level
-              ]"
-              @click.stop="$emit('scrollTo', header.id)"
-            >
-              <span class="toc-index">{{ header.number }}</span>
-              <span class="toc-text">{{ header.text }}</span>
+            <div v-for="item1 in docTree" :key="item1.id">
               <div 
-                v-if="header.hasChildren"
-                class="collapse-btn" 
-                :class="{ collapsed: header.isCollapsed }"
-                @click.stop="toggleCollapse(header.id)"
+                class="toc-row doc-row level-1"
+                :class="{ active: activeId === item1.id }"
+                @click.stop="$emit('scrollTo', item1.id)"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                <span class="toc-index">{{ item1.number }}</span>
+                <span class="toc-text">{{ item1.text }}</span>
+                <div 
+                  v-if="item1.children.length"
+                  class="collapse-btn" 
+                  :class="{ collapsed: collapsedIds.has(item1.id) }"
+                  @click.stop="toggleCollapse(item1.id)"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                </div>
               </div>
+              <transition name="collapse">
+                <div v-if="item1.children.length" v-show="!collapsedIds.has(item1.id)" class="toc-children">
+                  <div v-for="item2 in item1.children" :key="item2.id">
+                    <div 
+                      class="toc-row doc-row"
+                      :class="{ active: activeId === item2.id }"
+                      @click.stop="$emit('scrollTo', item2.id)"
+                    >
+                      <span class="toc-index">{{ item2.number }}</span>
+                      <span class="toc-text">{{ item2.text }}</span>
+                      <div 
+                        v-if="item2.children.length"
+                        class="collapse-btn" 
+                        :class="{ collapsed: collapsedIds.has(item2.id) }"
+                        @click.stop="toggleCollapse(item2.id)"
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                      </div>
+                    </div>
+                    <transition name="collapse">
+                      <div v-if="item2.children.length" v-show="!collapsedIds.has(item2.id)" class="toc-children">
+                        <div v-for="item3 in item2.children" :key="item3.id">
+                          <div 
+                            class="toc-row doc-row"
+                            :class="{ active: activeId === item3.id }"
+                            @click.stop="$emit('scrollTo', item3.id)"
+                          >
+                            <span class="toc-index">{{ item3.number }}</span>
+                            <span class="toc-text">{{ item3.text }}</span>
+                            <div 
+                              v-if="item3.children.length"
+                              class="collapse-btn" 
+                              :class="{ collapsed: collapsedIds.has(item3.id) }"
+                              @click.stop="toggleCollapse(item3.id)"
+                            >
+                              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+                            </div>
+                          </div>
+                          <transition name="collapse">
+                            <div v-if="item3.children.length" v-show="!collapsedIds.has(item3.id)" class="toc-children">
+                              <div v-for="item4 in item3.children" :key="item4.id">
+                                <div 
+                                  class="toc-row doc-row"
+                                  :class="{ active: activeId === item4.id }"
+                                  @click.stop="$emit('scrollTo', item4.id)"
+                                >
+                                  <span class="toc-index">{{ item4.number }}</span>
+                                  <span class="toc-text">{{ item4.text }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </transition>
+                        </div>
+                      </div>
+                    </transition>
+                  </div>
+                </div>
+              </transition>
             </div>
           </div>
         </transition>
@@ -464,6 +525,37 @@ const toggleCollapse = (id) => {
   }
 }
 
+const docTree = computed(() => {
+  const headers = props.docHeaders || []
+  if (!headers.length) return []
+  
+  const root = []
+  const stack = [] // Array of { header, children }
+
+  headers.forEach(h => {
+    const node = { ...h, children: [] }
+    
+    // Find parent
+    while (stack.length > 0) {
+      const parent = stack[stack.length - 1]
+      if (parent.level < node.level) {
+        break
+      }
+      stack.pop()
+    }
+
+    if (stack.length > 0) {
+      stack[stack.length - 1].children.push(node)
+    } else {
+      root.push(node)
+    }
+    
+    stack.push(node)
+  })
+  
+  return root
+})
+
 const visibleDocHeaders = computed(() => {
   const headers = props.docHeaders
   const result = []
@@ -515,8 +607,24 @@ const pendingCount = computed(() => Math.max(0, totalTasksCount.value - converti
 
 const tocBody = ref(null)
 
+const isTocUserInteracting = ref(false)
+let tocUserInteractTimer = null
+
+function markTocUserInteraction() {
+  isTocUserInteracting.value = true
+  if (tocUserInteractTimer) clearTimeout(tocUserInteractTimer)
+  tocUserInteractTimer = setTimeout(() => {
+    isTocUserInteracting.value = false
+    tocUserInteractTimer = null
+  }, 900)
+}
+
 watch(() => props.activeId, async (id) => {
   if (!id) return
+  // If the user is manually scrolling the TOC, don't auto-center the active item.
+  // This avoids a “scroll gets stuck” feel (especially after README language switches
+  // where activeId may change frequently due to layout/observer updates).
+  if (isTocUserInteracting.value) return
   await nextTick()
   const container = tocBody.value
   if (!container) return
@@ -547,6 +655,8 @@ watch(() => props.activeId, async (id) => {
   top: 0;
   flex-shrink: 0;
   user-select: none;
+  /* ensure sidebar sits above dynamic content that may be injected into main area */
+  z-index: 600;
 }
 
 .toc-header {
@@ -639,6 +749,13 @@ watch(() => props.activeId, async (id) => {
   flex: 1;
   overflow-y: auto;
   padding: 0 16px 32px;
+  /* keep scroll behaviour inside the sidebar and enable smooth scrolling on touch */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* make sure pointer/touch events reach this container after language switch */
+  pointer-events: auto;
+  touch-action: auto;
+  position: relative;
 }
 
 .toc-body::-webkit-scrollbar {
@@ -789,36 +906,9 @@ watch(() => props.activeId, async (id) => {
   color: #334155;
 }
 
-.doc-row.level-2 {
-  margin-left: 24px;
-  width: calc(100% - 24px);
-}
-
-.doc-row.level-2::before {
-  left: -26px;
-  width: 26px;
-}
-
-.doc-row.level-3 {
-  margin-left: 36px;
-  width: calc(100% - 36px);
+/* Nested doc-row font sizes */
+.toc-children .toc-children .doc-row {
   font-size: 13px;
-}
-
-.doc-row.level-3::before {
-  left: -38px;
-  width: 38px;
-}
-
-.doc-row.level-4 {
-  margin-left: 48px;
-  width: calc(100% - 48px);
-  font-size: 13px;
-}
-
-.doc-row.level-4::before {
-  left: -50px;
-  width: 50px;
 }
 
 .toc-index {
