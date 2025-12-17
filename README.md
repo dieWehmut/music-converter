@@ -1,4 +1,28 @@
-<h1 style="text-align: center;">Music Converter</h1>
+<h1 align="center">Music Converter</h1>
+
+<div align="center">
+
+<!-- 第一行：Colab 和 Demo -->
+<div>
+<a href="https://colab.research.google.com/github/dieWehmut/music-converter/blob/main/Colab-music-converter.ipynb" target="_blank">
+  <img src="https://img.shields.io/badge/COLAB-OPEN_IN_COLAB-F9AB00?style=flat-square&logo=googlecolab&logoColor=white&labelColor=555555" alt="Open In Colab"/>
+</a>
+<a href="https://music-converter.hc-dsw-nexus.me/" target="_blank">
+  <img src="https://img.shields.io/badge/DEMO-%E5%85%8D%E8%B4%B9%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-F9D553?style=flat-square&logo=google-chrome&logoColor=white&labelColor=555555" alt="Online Demo">
+</a>
+</div>
+
+<!-- 第二行：Python 和 License -->
+<div>
+<a href="https://www.python.org/">
+  <img src="https://img.shields.io/badge/PYTHON-3.9+-blue?style=flat-square&logo=python&logoColor=white&labelColor=555555" alt="Python Version">
+</a>
+<a href="https://github.com/dieWehmut/music-converter/blob/main/LICENSE">
+  <img src="https://img.shields.io/badge/LICENSE-MIT-green?style=flat-square&logo=github&logoColor=white&labelColor=555555" alt="License">
+</a>
+</div>
+
+</div>
 
 <div align="center">
 
