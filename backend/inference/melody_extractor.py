@@ -14,7 +14,7 @@ class MelodyExtractor:
     def __init__(
         self,
         target_sr: int = 32000,
-        window_seconds: float = 5.0,     # ★★★ 从 3 秒 → 5 秒 ★★★
+        window_seconds: float = 30.0,    
         hop_seconds: float = 0.5,
         min_score_threshold: float = 0.2,
     ):
@@ -90,29 +90,44 @@ class MelodyExtractor:
     # Window selection（不变）
     # -------------------------------------------
     def _find_best_window(self, y, sr):
-        total = len(y)
-        win = int(self.window_seconds * sr)
-        hop = int(self.hop_seconds * sr)
+            total = len(y)
+            win = int(self.window_seconds * sr)
+            hop = int(self.hop_seconds * sr)
 
-        best_score = -1
-        best_start = 0
+            # =========== 修改点：处理短音频 ===========
+            # 如果音频总长度 <= 窗口长度 (比如原曲12秒，我们要截30秒)
+            # 直接返回 0 到 结尾，不进行滑动窗口搜索
+            if total <= win:
+                print(f"[Window] Audio is short ({total/sr:.2f}s). Using full length.")
+                return 0, total
+            # ========================================
 
-        for start in range(0, total - win, hop):
-            seg = y[start:start+win]
-            rms = np.sqrt(np.mean(seg**2)) if seg.size>0 else 0.0
-            if rms < 1e-4: continue
+            best_score = -1
+            best_start = 0
 
-            zcr = np.mean(librosa.feature.zero_crossing_rate(seg))
-            if zcr > 0.20: continue
+            # 只有当 total > win 时，这里才会执行
+            for start in range(0, total - win, hop):
+                seg = y[start:start+win]
+                
+                # 避免全静音片段
+                rms = np.sqrt(np.mean(seg**2)) if seg.size > 0 else 0.0
+                if rms < 1e-4: continue
 
-            s = self.scorer.score(seg, sr)
-            if s > best_score:
-                best_score = s
-                best_start = start
+                # 避免噪音/过高过零率片段
+                zcr = np.mean(librosa.feature.zero_crossing_rate(seg))
+                if zcr > 0.20: continue
 
-        end = best_start + win
-        print(f"[Window] best {best_start} ~ {end}")
-        return best_start, end
+                # 计算旋律评分
+                s = self.scorer.score(seg, sr)
+                if s > best_score:
+                    best_score = s
+                    best_start = start
+
+            end = best_start + win
+            print(f"[Window] best {best_start} ~ {end}")
+            return best_start, end
+
+
 
     # -------------------------------------------
     # Public API（只输出 5 秒，逻辑完全不变）
