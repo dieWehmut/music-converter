@@ -198,64 +198,68 @@ class FullMusicPipeline:
     def process(self, audio_path, target_style, target_emotion,
                     output_dir="backend/output", max_attempts=4):
 
-            audio_path = Path(audio_path)
-            output_dir = Path(output_dir)
+            import soundfile as sf
+            import shutil
+            import numpy as np
+
+            # ====================================================
+            # ★★★ 路径修复逻辑 (核心) ★★★
+            # ====================================================
+            # 1. 强制将输入路径转换为绝对路径
+            audio_path = Path(audio_path).resolve()
+
+            # 2. 处理输出路径：确保基于当前工作目录生成绝对路径
+            # 如果传入的是相对路径 (如 "backend/output")，将其转换为绝对路径
+            if Path(output_dir).is_absolute():
+                output_dir = Path(output_dir)
+            else:
+                output_dir = (Path.cwd() / output_dir).resolve()
+
+            # 3. 创建输出目录 (关键：必须加 parents=True 防止父目录不存在报错)
             output_dir.mkdir(parents=True, exist_ok=True)
             
+            print(f"📂 Audio Path: {audio_path}")
+            print(f"📂 Output Dir: {output_dir}")
+
+            # ====================================================
+
             print("🔍 Analyzing original audio…")
             orig = self.analyzer.analyze(str(audio_path))
             print(f"🎵 Original Style:   {orig['style']}")
             print(f"😊 Original Emotion: {orig['emotion']}")
 
-            # 如果未指定目标，则默认保持原样
             if not target_style:
                 target_style = orig['style']
-                print(f"👉 Target Style not specified, using original: {target_style}")
-            
             if not target_emotion:
                 target_emotion = orig['emotion']
-                print(f"👉 Target Emotion not specified, using original: {target_emotion}")
 
-            # =========== 修改点：计算动态生成时长 ===========
-            try:
-                # 预读取音频获取时长
-                y_tmp, sr_tmp = librosa.load(str(audio_path), sr=32000)
-                input_duration = librosa.get_duration(y=y_tmp, sr=sr_tmp)
-                
-                # 目标时长 = min(原曲时长, 30.0秒)
-                # 这样 12秒的歌只会生成 12秒，不会强行生成 30秒
-                target_gen_seconds = min(input_duration, 30.0)
-                print(f"🕒 Input Duration: {input_duration:.2f}s | Target Generation: {target_gen_seconds:.2f}s")
-            except Exception as e:
-                print(f"⚠️ Duration check failed: {e}, fallback to 30.0s")
-                target_gen_seconds = 30.0
-            # ==============================================
+            # 1. 读取原音频完整数据
+            print("📏 Checking duration...")
+            y_full, sr_full = librosa.load(str(audio_path), sr=32000, mono=True)
+            total_duration = librosa.get_duration(y=y_full, sr=sr_full)
+            print(f"🕒 Total Duration: {total_duration:.2f}s")
 
-            # --- Melody info ---
-            print("\n🎼 Extracting melody info…")
+            # --- Melody info (基于全曲提取特征，保持整体风格一致) ---
+            print("\n🎼 Extracting global melody info…")
             try:
                 melody_info = self.build_melody_info(str(audio_path))
             except Exception as e:
                 print("[WARN] melody info failed:", e)
-                melody_info = {
-                    "key": "unknown",
-                    "pitch_range": 0,
-                    "hook_score": 0,
-                    "rhythm_score": 0,
-                    "scale_corr": 0,
-                    "contour_score": 0,
-                }
-            
+                melody_info = {"key": "C major", "pitch_range": 50, "hook_score": 0.5, "rhythm_score": 0.5, "scale_corr": 0.5, "contour_score": 0.5}
+
             best_score = -1
             best_output = None
             best_result = None
 
-            print("\n🎶 Multi-attempt generation…")
+            # ====================================================
+            # 开始尝试 (Attempts Loop)
+            # ====================================================
+            print(f"\n🎶 Multi-attempt generation ({max_attempts} attempts)...")
+            
             for attempt in range(1, max_attempts + 1):
-
                 print(f"\n========== Attempt {attempt}/{max_attempts} ==========")
 
-                # --- prompt ---
+                # 构建 Prompt (全曲通用)
                 prompt = self.prompt_builder.build_prompt(
                     melody_info=melody_info,
                     target_style=target_style,
@@ -263,86 +267,118 @@ class FullMusicPipeline:
                     attempt=attempt,
                     creativity=1.0,
                 )
+                print("🧠 Prompt (Summary):", prompt.split('\n')[1] if len(prompt.split('\n'))>1 else "...")
 
-                print("\n🧠 Prompt:")
-                print(prompt)
+                # ================================================
+                # ★★★ 分段处理逻辑 (Slicing) ★★★
+                # ================================================
+                
+                # 临时文件夹，用于存放切片
+                temp_seg_dir = output_dir / "temp_segments"
+                
+                # ★★★ 修复：必须加 parents=True，否则如果 output_dir 刚创建，这里可能会报错 ★★★
+                temp_seg_dir.mkdir(parents=True, exist_ok=True)
+                
+                full_generated_audio = []
+                
+                # 按 30秒 切片循环
+                segment_length_samples = 30 * sr_full
+                total_segments = int(np.ceil(len(y_full) / segment_length_samples))
 
-                # --- melody extract ---
-                # 注意：这里的 extract_melody_to_wav 会调用上面改过的 _find_best_window
-                # 所以它会自动处理短音频，不会报错
-                raw = self.melody_extractor.extract_melody_to_wav(
-                    str(audio_path),
-                    target_style=target_style,
-                    target_emotion=target_emotion,
-                    strength=0.9,
-                    output_path=output_dir / f"melody_attempt_{attempt}.wav",
-                    weaken_level=attempt - 1,
-                )
-
-                # --- melody transform ---
-                transformed = self.melody_transformer.transform(
-                    raw,
-                    attempt=attempt,
-                    prev_score=best_score,
-                )
-
-                # --- generate ---
-                out_file = output_dir / f"generated_attempt_{attempt}.wav"
-                print("\n🎧 Generating MusicGen output…")
-
-                self.music_gen.generate_with_melody(
-                    prompt=prompt,
-                    melody_path=str(transformed),
-                    output_path=str(out_file),
+                for i in range(total_segments):
+                    start_sample = i * segment_length_samples
+                    end_sample = min((i + 1) * segment_length_samples, len(y_full))
                     
-                    # =========== 修改点：传入动态时长 ===========
-                    target_seconds=target_gen_seconds, 
-                    # ==========================================
+                    # 1. 切出当前 30s 片段
+                    y_seg = y_full[start_sample:end_sample]
+                    seg_duration = len(y_seg) / sr_full
                     
-                    guidance_scale=self.guidance_for_attempt(attempt),
-                    temperature=1.0,
-                    top_p=0.95,
-                    do_sample=True,
-                )
+                    if seg_duration < 0.5: continue # 跳过极短碎片
 
-                # --- analyze ---
-                gen = self.analyzer.analyze(str(out_file))
+                    # 2. 保存这个片段为临时文件 (供 melody_extractor 读取)
+                    seg_input_path = temp_seg_dir / f"seg_input_{attempt}_{i}.wav"
+                    
+                    # ★★★ 修复：传给 sf.write 必须是 str ★★★
+                    sf.write(str(seg_input_path), y_seg, sr_full)
 
-                # --- score ---
+                    print(f"  -> Processing Segment {i+1}/{total_segments} ({seg_duration:.1f}s)...")
+
+                    # 3. 提取该片段的旋律
+                    seg_melody_path = self.melody_extractor.extract_melody_to_wav(
+                        str(seg_input_path),
+                        target_style=target_style,
+                        target_emotion=target_emotion,
+                        strength=0.9,
+                        output_path=temp_seg_dir / f"seg_mel_{attempt}_{i}.wav",
+                        weaken_level=attempt - 1
+                    )
+
+                    # 4. 旋律变换
+                    seg_trans_path = self.melody_transformer.transform(
+                        seg_melody_path,
+                        attempt=attempt
+                    )
+
+                    # 5. 生成该片段 (target_seconds 动态设为该片段长度)
+                    seg_out_path = temp_seg_dir / f"seg_out_{attempt}_{i}.wav"
+                    
+                    self.music_gen.generate_with_melody(
+                        prompt=prompt,
+                        melody_path=str(seg_trans_path),
+                        output_path=str(seg_out_path), # ★★★ 传 str ★★★
+                        target_seconds=seg_duration,   # <--- 动态时长 (<=30s)
+                        guidance_scale=self.guidance_for_attempt(attempt),
+                        temperature=1.0,
+                        top_p=0.95,
+                        do_sample=True,
+                    )
+
+                    # 6. 读取生成结果存入列表
+                    y_gen_seg, _ = librosa.load(str(seg_out_path), sr=32000, mono=True)
+                    full_generated_audio.append(y_gen_seg)
+
+                # ================================================
+                # 拼接所有片段
+                # ================================================
+                print("🔗 Stitching segments together...")
+                if len(full_generated_audio) > 0:
+                    final_y = np.concatenate(full_generated_audio)
+                else:
+                    final_y = np.zeros(32000) # fallback
+
+                # 保存最终完整文件
+                final_out_file = output_dir / f"generated_attempt_{attempt}.wav"
+                sf.write(str(final_out_file), final_y, 32000)
+
+                # 清理临时文件 (可选，保持目录整洁)
+                try:
+                    shutil.rmtree(str(temp_seg_dir))
+                except:
+                    pass
+
+                # ================================================
+                # 评分与分析 (对拼接后的完整音频进行评分)
+                # ================================================
+                gen = self.analyzer.analyze(str(final_out_file))
                 score_info = compute_final_score(orig, gen, target_style, target_emotion)
                 score_total = score_info["total"]
 
-                print("\n📊 Score Breakdown:")
-                print(f"  Total Score:  {score_total:.2f} / 100")
-                print(f"  Style Gain:   {score_info['style_gain']:+.3f}")
-                print(f"  Emotion Gain: {score_info['emotion_gain']:+.3f}")
-                print(f"  Escape:       {score_info['escape']:+.3f}")
-                print(f"  JS Diverg.:   {score_info['js']:.3f}")
-                print(f"  Confidence:   {score_info['confidence']:.3f}")
-                
+                print(f"📊 Attempt {attempt} Score: {score_total:.2f} / 100")
+
                 if score_total > best_score:
                     best_score = score_total
-                    best_output = str(out_file)
+                    best_output = str(final_out_file)
                     best_result = gen
 
-                # --- early stop ---
                 if score_total >= 90:
-                    print("✨ High-quality result achieved (A+). Early stop.")
+                    print("✨ High-quality result achieved. Early stop.")
                     break
 
             print("\n🎉 Final Result")
             print("Best Score:", best_score)
-            if best_result is not None:
-                print("Best Style:", best_result.get("style"))
-                print("Best Emotion:", best_result.get("emotion"))
-            else:
-                print("Best Style: N/A")
-                print("Best Emotion: N/A")
             print("Best File:", best_output)
 
             return best_output
-
-
 
 # ============================================================
 # Run

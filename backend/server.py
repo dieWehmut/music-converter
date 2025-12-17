@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
@@ -9,20 +9,42 @@ import uuid
 import logging
 import os
 import time
+import queue
+import threading
+import soundfile as sf
 
+# 设置 HuggingFace 镜像，防止国内下载模型超时
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-app = FastAPI(title="Music Converter - Dev API")
 
-# In-memory task store
-# Structure: { task_id: { "status": "pending"|"processing"|"success"|"failed", "result_path": str, "error": str, "created_at": float } }
+app = FastAPI(title="Music Converter - Priority Queue System")
+
+# ==========================================
+# 全局配置与变量
+# ==========================================
+
+# 1. 任务存储
 TASKS = {}
 
-# Dev mode: when set to '1', server returns mock responses so frontend can be
-# integrated without heavy ML dependencies. Enable with environment variable:
-#   set MC_DEV_MODE=1
+# 2. 优先级队列 (PriorityQueue)
+# 格式: (priority, timestamp, job_payload)
+# priority 越小越先执行 (10 = High, 50 = Normal)
+JOB_QUEUE = queue.PriorityQueue()
+
+# 3. 全局 Pipeline 实例
+_PIPELINE_INSTANCE = None
+
+LOG = logging.getLogger("uvicorn.error")
+
+# 4. 环境变量开关
+# 开发模式 (Mock数据)
 DEV_MODE = os.environ.get("MC_DEV_MODE", "0") == "1"
 
-# Allow requests from common frontend dev origin
+# 长音频允许开关
+# "0" (False) -> 默认：阻止 > 20s 的音频，直接报错
+# "1" (True)  -> 解锁：允许 > 20s 的音频，但优先级较低
+ENABLE_LONG_AUDIO = os.environ.get("MC_ENABLE_LONG_AUDIO", "0") == "1"
+
+# 5. CORS 设置 (使用你指定的列表)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -38,10 +60,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-LOG = logging.getLogger("uvicorn.error")
-
-# Global pipeline instance to avoid re-loading models on every request
-_PIPELINE_INSTANCE = None
+# ==========================================
+# 核心逻辑：Pipeline 加载与后台 Worker
+# ==========================================
 
 def get_pipeline():
     global _PIPELINE_INSTANCE
@@ -56,22 +77,115 @@ def get_pipeline():
         return _PIPELINE_INSTANCE
     except ImportError as ie:
         LOG.warning("get_pipeline import failed: %s", ie)
-        raise HTTPException(status_code=503, detail="Server not configured with ML dependencies (torch/tensorflow). Rebuild with INSTALL_HEAVY=true or use dev mode.")
+        raise HTTPException(status_code=503, detail="Server not configured with ML dependencies.")
     except Exception as e:
         LOG.exception("Failed to initialize pipeline")
         raise HTTPException(status_code=500, detail=f"Pipeline initialization failed: {e}")
 
+def worker_loop():
+    """
+    后台消费者线程：
+    一直运行，从优先级队列中取任务执行。
+    保证 CPU 永远只处理一个任务，防止卡死。
+    """
+    LOG.info(f"🚀 Priority Worker started! Long Audio Enabled: {ENABLE_LONG_AUDIO}")
+    
+    while True:
+        # 1. 阻塞等待任务
+        # 取出元组: (优先级, 时间戳, 任务数据)
+        priority, ts, job = JOB_QUEUE.get()
+        
+        task_id = job["task_id"]
+        tmp_path = job["tmp_path"]
+        target_style = job["target_style"]
+        target_emotion = job["target_emotion"]
+        out_dir = job["out_dir"]
+        duration = job.get("duration", 0)
+
+        p_label = "🔥HIGH" if priority < 50 else "🐢NORMAL"
+        LOG.info(f"👷 Worker picked up {p_label} priority task: {task_id} (len={duration:.1f}s). Remaining: {JOB_QUEUE.qsize()}")
+
+        # 2. 更新状态
+        if task_id in TASKS:
+            TASKS[task_id]["status"] = "processing"
+        
+        try:
+            # 3. 加载模型
+            pipeline = get_pipeline()
+            
+            LOG.info(f"Starting pipeline processing for {task_id}...")
+            
+            # 4. 执行推理 (耗时操作)
+            # 传入绝对路径字符串
+            best = pipeline.process(
+                tmp_path, 
+                target_style, 
+                target_emotion, 
+                output_dir=str(out_dir), 
+                max_attempts=1
+            )
+
+            if not best:
+                raise RuntimeError("Pipeline returned no output.")
+
+            # 5. 验证结果文件
+            best_path = Path(best).resolve()
+            if not best_path.exists():
+                # 尝试在 out_dir 查找相对路径
+                possible = out_dir / Path(best).name
+                if possible.exists():
+                    best_path = possible.resolve()
+                else:
+                    raise RuntimeError(f"Generated file missing at {best_path}")
+
+            # 6. 标记成功
+            TASKS[task_id]["status"] = "success"
+            TASKS[task_id]["result_path"] = str(best_path)
+            LOG.info(f"✅ Task {task_id} finished successfully.")
+
+        except Exception as e:
+            LOG.exception(f"❌ Task {task_id} failed inside worker.")
+            TASKS[task_id]["status"] = "failed"
+            TASKS[task_id]["error"] = str(e)
+        
+        finally:
+            # 7. 清理上传的临时文件
+            try:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except:
+                pass
+            
+            # 标记队列任务完成
+            JOB_QUEUE.task_done()
+
+# 应用启动时开启 Worker 线程
+@app.on_event("startup")
+async def startup_event():
+    t = threading.Thread(target=worker_loop, daemon=True)
+    t.start()
+
+# ==========================================
+# API 接口
+# ==========================================
+
+@app.get("/")
+async def root():
+    status_text = "Allowed" if ENABLE_LONG_AUDIO else "Blocked (>20s)"
+    return HTMLResponse(f"<h1>Music Converter Backend</h1><p>Mode: Priority Queue</p><p>Long Audio: {status_text}</p>")
+
+@app.get("/health")
+async def health():
+    return "ok"
 
 @app.get("/api/styles")
 async def get_styles():
-    """返回可用的风格列表。优先从 style encoder 中读取，否则返回常见风格的备选列表。"""
     try:
         from backend.inference import style_recognition as sr
         classes = []
         try:
             classes = list(sr._STYLE_ENCODER.classes_)
         except Exception:
-            # 如果 encoder 对象不可用，尝试通过模型预测的 classes 属性
             try:
                 classes = list(sr._STYLE_MODEL.classes_)
             except Exception:
@@ -81,13 +195,10 @@ async def get_styles():
         return {"styles": classes}
     except Exception as e:
         LOG.warning("get_styles fallback: %s", e)
-        # fallback list
         return {"styles": ["rock", "pop", "jazz", "electronic", "classical"]}
-
 
 @app.get("/api/emotions")
 async def get_emotions():
-    """返回可用的情绪列表。"""
     try:
         from backend.inference import emotion_recognition as er
         classes = list(er.emotion_labels)
@@ -96,29 +207,21 @@ async def get_emotions():
         return {"emotions": classes}
     except Exception as e:
         LOG.warning("get_emotions fallback: %s", e)
-        # fallback list
         return {"emotions": ["happy", "sad", "angry", "funny", "scary", "tender"]}
-
-
-@app.get("/")
-async def root():
-    """Basic root page to verify the backend is serving requests."""
-    return HTMLResponse(content="<html><body><h1>Music Converter Backend</h1><p>OK</p></body></html>", status_code=200)
-
-
-@app.get("/health")
-async def health():
-    """Lightweight health endpoint for uptime checks."""
-    return PlainTextResponse("ok", status_code=200)
-
 
 @app.get("/api/tasks/{task_id}")
 async def get_task_status(task_id: str):
     task = TASKS.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
-
+    
+    response = task.copy()
+    if task["status"] == "queued":
+        p_val = task.get("priority_val", 50)
+        p_text = "High Priority" if p_val < 50 else "Normal Priority"
+        response["msg"] = f"Queued ({p_text}). Waiting for processor..."
+        
+    return response
 
 @app.get("/api/tasks/{task_id}/download")
 async def download_task_result(task_id: str):
@@ -130,9 +233,8 @@ async def download_task_result(task_id: str):
     
     path = Path(task["result_path"])
     if not path.exists():
-         raise HTTPException(status_code=500, detail="File missing")
+         raise HTTPException(status_code=500, detail="File missing on server")
     return FileResponse(str(path), media_type="audio/wav", filename=path.name)
-
 
 def _save_upload_to_temp(upload: UploadFile):
     suffix = Path(upload.filename or "").suffix or ".wav"
@@ -141,47 +243,17 @@ def _save_upload_to_temp(upload: UploadFile):
         shutil.copyfileobj(upload.file, f)
     return str(tmp)
 
-
 @app.post("/api/features")
 async def extract_features(file: UploadFile = File(...)):
-    """上传音频，返回分析结果（style/emotion/probabilities）"""
-    # DEV_MODE: 优先尝试真实分析，若依赖不可用则回退到 mock
+    """特征提取接口"""
+    # 如果是开发模式，返回 Mock 数据
     if DEV_MODE:
-        tmp_path = None
-        try:
-            tmp_path = _save_upload_to_temp(file)
-            try:
-                from backend.inference.analyze import analyzer
-            except ImportError as ie:
-                LOG.warning("extract_features analyzer import failed (dev fallback): %s", ie)
-                mock = {
-                    "style": "rock",
-                    "emotion": "happy",
-                    "style_prob": {"rock": 0.7, "pop": 0.15, "jazz": 0.05, "electronic": 0.05, "classical": 0.05},
-                    "emotion_prob": {"happy": 0.6, "sad": 0.1, "angry": 0.05, "funny": 0.05, "scary": 0.05, "tender": 0.15}
-                }
-                try:
-                    mock["uploaded_filename"] = file.filename
-                except Exception:
-                    pass
-                return JSONResponse(content=mock)
-
-            # 尝试真实分析
-            result = await run_in_threadpool(analyzer.analyze, tmp_path)
-            if isinstance(result, dict) and result.get("error"):
-                raise RuntimeError(result.get("error"))
-            return JSONResponse(content=result)
-        except FileNotFoundError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
-            LOG.exception("extract_features failed (dev real attempt)")
-            raise HTTPException(status_code=500, detail=str(e))
-        finally:
-            try:
-                if tmp_path:
-                    Path(tmp_path).unlink(missing_ok=True)
-            except Exception:
-                pass
+        return JSONResponse(content={
+            "style": "rock",
+            "emotion": "happy",
+            "style_prob": {"rock": 0.8, "pop": 0.2},
+            "emotion_prob": {"happy": 0.9, "sad": 0.1}
+        })
 
     tmp_path = None
     try:
@@ -189,11 +261,9 @@ async def extract_features(file: UploadFile = File(...)):
         try:
             from backend.inference.analyze import analyzer
         except ImportError as ie:
-            LOG.warning("extract_features import failed: %s", ie)
-            raise HTTPException(status_code=503, detail="Server not configured with ML dependencies (torch/tensorflow). Rebuild with INSTALL_HEAVY=true or use dev mode.")
+            raise HTTPException(status_code=503, detail="ML dependencies missing.")
 
         result = await run_in_threadpool(analyzer.analyze, tmp_path)
-        # If analyzer returned an error dict, surface it as 500
         if isinstance(result, dict) and result.get("error"):
             raise RuntimeError(result.get("error"))
         return JSONResponse(content=result)
@@ -209,109 +279,110 @@ async def extract_features(file: UploadFile = File(...)):
         except Exception:
             pass
 
-
-def process_conversion(task_id: str, tmp_path: str, target_style: str, target_emotion: str, out_dir: Path):
-    TASKS[task_id]["status"] = "processing"
-    try:
-        # Use global pipeline instance
-        pipeline = get_pipeline()
-        LOG.info("Starting pipeline for %s -> style=%s emotion=%s", tmp_path, target_style, target_emotion)
-        # Reduce max_attempts to 1 for faster generation
-        best = pipeline.process(tmp_path, target_style, target_emotion, output_dir=str(out_dir), max_attempts=1)
-
-        if not best:
-            raise RuntimeError("generation failed or no output produced")
-        
-        # Ensure best is an absolute path or relative to CWD so FileResponse can find it
-        best_path = Path(best).resolve()
-        if not best_path.exists():
-                # Fallback: try to find it relative to out_dir if it was returned as relative path
-                best_path = out_dir / Path(best).name
-                if not best_path.exists():
-                    # Fallback: try to find it in CWD
-                    best_path = Path(Path(best).name).resolve()
-
-        if not best_path.exists():
-            LOG.error(f"Generated file not found at {best_path} (original: {best})")
-            raise RuntimeError(f"Generated file not found: {best}")
-
-        TASKS[task_id]["status"] = "success"
-        TASKS[task_id]["result_path"] = str(best_path)
-        LOG.info(f"Task {task_id} completed successfully. Result: {best_path}")
-
-    except Exception as e:
-        LOG.exception(f"Task {task_id} failed")
-        TASKS[task_id]["status"] = "failed"
-        TASKS[task_id]["error"] = str(e)
-    finally:
-        try:
-            if tmp_path:
-                Path(tmp_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-
-
 @app.post("/api/convert")
 async def convert_audio(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     style: str = Form(None),
     emotion: str = Form(None),
     task_id: str = Form(None)
 ):
-    """上传音频并启动转换任务（异步）。返回 task_id 用于轮询状态。"""
-    
+    """
+    提交任务接口：
+    1. 读取音频时长。
+    2. 根据 ENABLE_LONG_AUDIO 决定是拒绝长任务还是降级长任务。
+    3. 放入优先级队列。
+    """
     if not task_id:
         task_id = uuid.uuid4().hex
 
-    # Dev mode: return mock success immediately
+    # Dev mode Mock
     if DEV_MODE:
-        # ... (dev mode logic omitted for brevity, assuming dev mode users don't need persistence as much or we can mock it too)
-        # For simplicity, let's just run the dev logic synchronously and return success if DEV_MODE is on, 
-        # BUT to support the new frontend polling, we should probably mock the task flow too.
-        # However, to keep changes minimal, let's just use the real flow but with mock pipeline if needed.
-        # Actually, let's just stick to the real flow. If DEV_MODE is on, the pipeline might be mocked inside get_pipeline?
-        # No, get_pipeline loads real pipeline.
-        # Let's just keep the old synchronous dev mode block for now, but wrap it in a task?
-        # No, let's just return the file directly if DEV_MODE is on, breaking the polling contract?
-        # The frontend expects JSON {task_id} now.
-        # So we MUST update DEV_MODE to return JSON.
-        
-        TASKS[task_id] = { "status": "success", "created_at": time.time(), "result_path": "backend/test_audio.wav" } # Mock path
-        # Ensure mock file exists
-        mock_path = Path("backend/test_audio.wav")
-        if not mock_path.exists():
-             # Create a dummy file
-             with open(mock_path, "wb") as f: f.write(b"RIFF....WAVEfmt ...data....")
-        
+        TASKS[task_id] = { "status": "success", "created_at": time.time(), "result_path": "backend/test_audio.wav" }
         return {"task_id": task_id, "status": "success"}
 
     tmp_path = None
     try:
+        # 1. 保存临时文件
         tmp_path = _save_upload_to_temp(file)
 
-        # Use unique output directory to prevent overwriting
-        out_dir = Path("backend/output") / task_id
+        # 2. 读取音频时长
+        try:
+            info = sf.info(tmp_path)
+            duration = info.duration
+        except Exception:
+            # 读取失败时清理文件并报错
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise HTTPException(status_code=400, detail="Cannot read audio duration (invalid file).")
+
+        # ==========================================
+        # ★★★ 逻辑判断区域 ★★★
+        # ==========================================
+        LIMIT_SECONDS = 20.0
+        
+        # 场景 A: 开关关闭 (默认) 且 超时 -> 拒绝任务 (返回 400)
+        if not ENABLE_LONG_AUDIO and duration > LIMIT_SECONDS:
+            print(f"🚫 [Block Mode] Rejected task {task_id}: Duration {duration:.2f}s > {LIMIT_SECONDS}s")
+            
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+                
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Audio too long ({duration:.1f}s). Max limit is {LIMIT_SECONDS}s."
+            )
+
+        # 场景 B: 允许通过，根据时长分配优先级
+        # - 短任务 (<=20s) -> 优先级 10 (高)
+        # - 长任务 (>20s)  -> 优先级 50 (低)
+        if duration <= LIMIT_SECONDS:
+            priority = 10 
+            LOG.info(f"🚀 Short audio ({duration:.1f}s) -> HIGH Priority")
+        else:
+            priority = 50
+            LOG.info(f"🐢 Long audio ({duration:.1f}s) -> NORMAL Priority")
+
+        # ==========================================
+
+        # 3. 准备输出目录 (绝对路径)
+        out_dir = (Path("backend/output") / task_id).resolve()
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # 使用提供的 style / emotion，若为空则传 None 给 pipeline (pipeline 会自动使用原音频的属性)
-        target_style = style
-        target_emotion = emotion
+        # 4. 初始化任务状态
+        TASKS[task_id] = { 
+            "status": "queued", 
+            "created_at": time.time(),
+            "target_style": style,
+            "target_emotion": emotion,
+            "priority_val": priority
+        }
+
+        # 5. 构造任务包
+        job_payload = {
+            "task_id": task_id,
+            "tmp_path": tmp_path,
+            "target_style": style,
+            "target_emotion": emotion,
+            "out_dir": out_dir,
+            "duration": duration
+        }
+
+        # 6. 放入优先级队列 (Priority, Timestamp, Payload)
+        JOB_QUEUE.put((priority, time.time(), job_payload))
         
-        # Init task
-        TASKS[task_id] = { "status": "pending", "created_at": time.time() }
+        LOG.info(f"📥 Task {task_id} enqueued. Queue size: {JOB_QUEUE.qsize()}")
+        
+        return {"task_id": task_id, "status": "queued"}
 
-        # Start background task
-        background_tasks.add_task(process_conversion, task_id, tmp_path, target_style, target_emotion, out_dir)
-
-        return {"task_id": task_id, "status": "pending"}
-
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        LOG.exception("convert_audio failed")
+        LOG.exception("convert_audio failed to enqueue")
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     import uvicorn
-
+    # 启动服务
     uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=True)
