@@ -2,24 +2,24 @@
 
 <div align="center">
 
-简体中文 | [繁體中文](docs/README.zh-TW.md) | [English](docs/README.en.md) | [日本語](docs/README.ja.md)
+**简体中文** | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [日本語](README.ja.md)
 
 </div>
 
 ---
 
-# 目录
+# 项目简介
 
-<details>
-<summary>展开/收起</summary>
+Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用户上传受支持的音频（WAV、MP3 等），系统先解析其风格与情绪特征，再依据目标风格与情绪生成新的编曲。前端由 Vue 3 + Vite 驱动，后端使用 FastAPI，对接深度学习推理管线。
 
-- [目录](#目录)
+## 目录
+
 - [项目简介](#项目简介)
-- [项目背景](#项目背景)
-- [功能亮点](#功能亮点)
-- [技术实现](#技术实现)
-  - [主要内容](#主要内容)
-  - [目录概览](#目录概览)
+  - [目录](#目录)
+  - [功能亮点](#功能亮点)
+  - [架构概览](#架构概览)
+    - [主要内容](#主要内容)
+    - [目录概览](#目录概览)
   - [环境要求](#环境要求)
   - [本地测试](#本地测试)
     - [后端设置](#后端设置)
@@ -33,32 +33,12 @@
     - [响应字段](#响应字段)
     - [环境变量](#环境变量)
   - [故障排查](#故障排查)
-- [价值与展望](#价值与展望)
-- [第三方说明](#第三方说明)
-  - [核心模型](#核心模型)
-  - [基础框架](#基础框架)
+  - [第三方说明](#第三方说明)
+    - [核心模型](#核心模型)
+    - [基础框架](#基础框架)
 - [写在最后](#写在最后)
 
-</details>
-
-# 项目简介
-
-Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用户上传受支持的音频（WAV、MP3 等），系统先解析其风格与情绪特征，再依据目标风格与情绪生成新的编曲。前端由 Vue 3 + Vite 驱动，后端使用 FastAPI，对接深度学习推理管线。
-
-# 项目背景
-随着数字音乐产业的蓬勃发展，用户对音乐个性化改编的需求日益增长。传统音乐风格往往依赖专业音乐人手动创作，成本高、周期长，难以满足普通用户快速变化的多样化需求。尤其在风格迁移与情绪转换场景中，需要同时兼顾原曲旋律特征与目标风格的融合，传统人工制作方式难以高效实现批量处理。
-
-本项目旨在通过深度学习技术，构建一套自动化的音乐情绪与风格转换系统，核心解决三大痛点：
-
-- **1.技术门槛高**：借助 YAMNet 模型的音频特征提取能力（通过backend/features/yamnet_extract.py封装实现）和 MusicGen 的音乐生成能力，让非专业用户无需掌握音乐理论即可完成风格转换
-
-- **2.处理效率低**：通过backend/inference/full_pipeline.py中的FullMusicPipeline类实现分析 - 生成全流程自动化，将传统需要数小时的编曲工作缩短至分钟级
-
-- **3.效果不稳定**：引入backend/inference/evaluate_generated.py中的评估体系，从风格增益、情绪增益、原始风格脱离度等多维度量化转换效果，确保输出质量
-
-系统融合前端交互（核心界面frontend/src/views/Home.vue）、后端 API 服务（backend/server.py）与深度学习推理 pipeline，既实现了对音频处理与生成技术的工程化落地，也为音乐创意表达提供了新的技术范式。通过 IndexedDB 实现的本地数据持久化（前端存储方案）和MC_DEV_MODE=1的开发者模式，进一步降低了技术验证与二次开发的门槛。
-
-# 功能亮点
+## 功能亮点
 
 - **多格式支持**：上传 WAV/MP3（或任何 `librosa` 支持的格式）并直接在浏览器中试听。
 - **智能分析**：运行风格与情绪识别模型（YAMNet + 自定义分类器），返回概率分布，方便可视化与后续决策。
@@ -66,15 +46,15 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - **持久化体验**：前端使用 IndexedDB 缓存上传与任务状态，刷新页面也不会丢失。
 - **开发者友好**：`MC_DEV_MODE=1` 可启用 DEV 模式，快速返回伪造但稳定的数据，方便无 GPU 的前端联调。
 
-# 技术实现
+## 架构概览
 
-## 主要内容
+### 主要内容
 
 - **前端**（`frontend/`）：核心界面 `src/views/Home.vue`，负责上传音频、渲染任务进度、展示结果，并提供目标风格与情绪的选择控件。
 - **后端**（`backend/`）：`server.py` 提供 API、管理后台任务，并加载 `backend/inference/full_pipeline.py` 的 `FullMusicPipeline`，支持风格与情绪的分析与生成。
 - **模型栈**：PyTorch (MusicGen)、TensorFlow (YAMNet)、Transformers、librosa 等依赖列于 `backend/requirements.txt`。
 
-## 目录概览
+### 目录概览
 
 ```
 music-converter/
@@ -308,6 +288,7 @@ npm run build
 - `result.file`: 下载链接（若 `status === success`）。
 
 ### 环境变量
+
 - `MC_DEV_MODE`: 设置为 `1` 时启用 DEV 模式，返回伪造数据并跳过模型加载。
 - `HF_ENDPOINT`: 指定 Hugging Face 镜像地址用于模型下载。
 - `ALLOW_ORIGINS`: 可指定前端允许的 CORS 域列表（在 `server.py` 中解析）。
@@ -330,27 +311,25 @@ npm run build
 - **权限/路径错误**：
   `backend/output` 目录需要有写入权限（进程用户）。若发生权限错误，改变目录权限或修改 `server.py` 中的输出路径。
 
-# 价值与展望
-
-# 第三方说明
+## 第三方说明
 
 本项目核心依赖于以下深度学习模型与框架。若打算分发本项目或其中的模型权重，请务必查看上游项目的许可证（LICENSE）并在发布中包含必要的 LICENSE/NOTICE 文件。
 
-## 核心模型
+### 核心模型
 
 - **YAMNet (TensorFlow Hub)**
   - **用途**：音频事件分类与特征提取。本项目使用 YAMNet 提取音频的 Embeddings 特征，用于后续的情绪与风格分析。
-  - **来源**：[TensorFlow Hub - YAMNet](https://tfhub.dev/google/yamnet/1)
+  - **来源**：https://tfhub.dev/google/yamnet/1
   - **许可**：Apache 2.0
-  - **说明**：项目中如需离线使用，请将模型放置于 [backend/models/yamnet/](backend/models/yamnet/)（目录下应包含 `saved_model.pb`、`variables/`、`assets/yamnet_class_map.csv` 等文件）。
+  - **说明**：项目中如需离线使用，请将模型放置于 `backend/models/yamnet/`（目录下应包含 `saved_model.pb`、`variables/`、`assets/yamnet_class_map.csv` 等文件）。
 
 - **MusicGen (Meta AI / Hugging Face)**
   - **用途**：基于文本提示或音频提示生成高质量音乐。本项目利用 MusicGen 根据用户选择的目标情绪与风格生成新的编曲。
-  - **来源**：[Hugging Face - Facebook/MusicGen](https://huggingface.co/facebook/musicgen-small) (默认为 small 版本，可配置)
-  - **许可**：CC-BY-NC 4.0 (非商业用途) / MIT (视具体模型版本而定，请务必核实)
+  - **来源**：https://huggingface.co/facebook/musicgen-small （默认为 small 版本，可配置）
+  - **许可**：CC-BY-NC 4.0（非商业用途）/ MIT（视具体模型版本而定，请务必核实）
   - **说明**：模型权重通常由 `transformers` 库自动下载并缓存。
 
-## 基础框架
+### 基础框架
 
 - **TensorFlow / tensorflow-hub**：用于加载与运行 YAMNet 模型。
 - **PyTorch**：用于运行 MusicGen 生成模型。
