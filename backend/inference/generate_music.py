@@ -62,71 +62,66 @@ class MusicGenerator:
         return audio
 
     def generate_with_melody(
-        self, prompt, melody_path, output_path,
-        target_seconds=30.0,
-        guidance_scale=3.0,
-        temperature=1.0,
-        top_p=0.95,
-        do_sample=True,
-        max_new_tokens=None,
-    ):
-        mel, sr = self._load_melody(melody_path)
+            self, prompt, melody_path, output_path,
+            target_seconds=20.0,
+            guidance_scale=3.0,
+            temperature=1.0,
+            top_p=0.95,
+            do_sample=True,
+            max_new_tokens=None,
+        ):
+            mel, sr = self._load_melody(melody_path)
 
-        if max_new_tokens is None:
-            max_new_tokens = int(target_seconds / self.seconds_per_token)
+            # 计算 token 数量
+            if max_new_tokens is None:
+                max_new_tokens = int(target_seconds / self.seconds_per_token)
 
-        inputs = self.processor(
-            text=[prompt],
-            audio=[mel],
-            sampling_rate=sr,
-            return_tensors="pt"
-        ).to(self.device)
+            inputs = self.processor(
+                text=[prompt],
+                audio=[mel],
+                sampling_rate=sr,
+                return_tensors="pt"
+            ).to(self.device)
 
-        # Fix: cast audio inputs to half precision if model is in half precision
-        if self.device == "cuda" and "input_values" in inputs:
-            inputs["input_values"] = inputs["input_values"].to(torch.float16)
+            if self.device == "cuda" and "input_values" in inputs:
+                inputs["input_values"] = inputs["input_values"].to(torch.float16)
 
-        with torch.no_grad():
-            audio = self.model.generate(
-                **inputs,
-                do_sample=do_sample,
-                temperature=temperature,
-                top_p=top_p,
-                guidance_scale=guidance_scale,
-                max_new_tokens=max_new_tokens,
-            )
+            with torch.no_grad():
+                audio = self.model.generate(
+                    **inputs,
+                    do_sample=do_sample,
+                    temperature=temperature,
+                    top_p=top_p,
+                    guidance_scale=guidance_scale,
+                    max_new_tokens=max_new_tokens,
+                )
 
-        # Ensure output is float32 for soundfile compatibility
-        audio = audio[0].cpu().numpy().reshape(-1).astype(np.float32)
+            # 转为 numpy float32
+            audio = audio[0].cpu().numpy().reshape(-1).astype(np.float32)
 
-        # 新增中段修复
-        audio = self._mid_collapse_fix(audio, sr)
-        # 保留尾部修复
-        audio = self._tail_fix(audio, sr)
+            # 中段修复 & 尾部修复（保持你原有的逻辑）
+            audio = self._mid_collapse_fix(audio, 32000)
+            audio = self._tail_fix(audio, 32000)
+            # 32000 是 MusicGen 的固定采样率
+            expected_samples = int(target_seconds * 32000)
+            
+            if len(audio) > expected_samples:
+                print(f"[MusicGen] Trimming audio from {len(audio)/32000:.2f}s to {target_seconds:.2f}s")
+                # 1. 直接截断
+                audio = audio[:expected_samples]
+                
+                # 2. 为了防止截断处出现爆音(Click)，给最后 0.1秒 做个淡出
+                fade_len = int(0.1 * 32000) 
+                if len(audio) > fade_len:
+                    # 线性淡出：从 1.0 变到 0.0
+                    fade_curve = np.linspace(1.0, 0.0, fade_len)
+                    audio[-fade_len:] = audio[-fade_len:] * fade_curve
+            # ==========================================
 
-        # normalize
-        if np.max(np.abs(audio)) > 1e-6:
-            audio = audio / np.max(np.abs(audio)) * 0.98
+            # normalize (防止爆音)
+            if np.max(np.abs(audio)) > 1e-6:
+                audio = audio / np.max(np.abs(audio)) * 0.98
 
-        # Ensure parent directory exists
-        try:
-            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-
-        try:
             sf.write(output_path, audio, 32000)
             print(f"[MusicGen] Saved: {output_path}")
             return output_path
-        except Exception as e:
-            print(f"[MusicGen] soundfile write failed: {e}")
-            # Fallback: try scipy.io.wavfile (write int16 PCM)
-            try:
-                from scipy.io import wavfile
-                scaled = (audio * 32767.0).clip(-32768, 32767).astype('int16')
-                wavfile.write(str(output_path), 32000, scaled)
-                print(f"[MusicGen] Saved via scipy.io.wavfile: {output_path}")
-                return output_path
-            except Exception as e2:
-                print(f"[MusicGen] fallback wav write failed: {e2}")
-                raise
