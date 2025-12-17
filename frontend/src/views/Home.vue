@@ -214,7 +214,7 @@ function handleRecentClick(t) {
 }
 
 // Expose reactive state to parent components (App.vue) after recentTasks is defined
-defineExpose({ files, activeId, docHeaders, styles, emotions, recentTasks })
+defineExpose({ files, activeId, docHeaders, styles, emotions, recentTasks, onFilesSelected })
 
 async function saveUpload(record) {
   const db = await openDb()
@@ -661,7 +661,8 @@ function onEmotionChange(item) {
   }
 }
 
-async function doExtractFor(item) {
+async function doExtractFor(item, force = false) {
+  if (!force && item.features) return
   item.error = ''
   item.extracting = true
   item.features = null
@@ -1122,7 +1123,10 @@ function taskDisplayLabel(file, task) {
                     <EmotionResult v-if="item.showAnalysis" :features="item.features" />
                   </transition>
                 </div>
-                <div v-if="item.error" class="error">{{ item.error }}</div>
+                <div v-if="item.error" class="error">
+                  {{ item.error }}
+                  <button class="btn btn--success btn--xs" style="margin-left: 6px;" @click="doExtractFor(item, true)">重试</button>
+                </div>
                 
                 <div v-if="item.tasks && item.tasks.length" class="tasks-list">
                   <div class="tasks-header-row">
