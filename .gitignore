@@ -40,10 +40,7 @@ __pycache__/
 # Vitest
 __screenshots__/
 .venv/
-<<<<<<< HEAD
-=======
 venv/
->>>>>>> server
 .idea/
 __pycache__/
 *.pyc
@@ -52,10 +49,6 @@ __pycache__/
 *.mp3
 *.flac
 *.m4a
-<<<<<<< HEAD
-*.aac
-=======
 *.aac
 output/
 server.log
->>>>>>> server
