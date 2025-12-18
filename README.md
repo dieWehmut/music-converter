@@ -12,14 +12,21 @@
 </a>
 </div>
 
+<<<<<<< HEAD
+<!-- 第二行：Python 和 License -->
+=======
 <!-- 第二行：Python、MusicGen Model 和 License -->
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 <div>
 <a href="https://www.python.org/">
   <img src="https://img.shields.io/badge/PYTHON-3.9+-blue?style=flat-square&logo=python&logoColor=white&labelColor=555555" alt="Python Version">
 </a>
+<<<<<<< HEAD
+=======
 <a href="https://huggingface.co/facebook/musicgen-small" target="_blank">
   <img src="https://img.shields.io/badge/MODEL-MusicGen-FFD21E?style=flat-square&logo=huggingface&logoColor=white&labelColor=555555" alt="Hugging Face Model">
 </a>
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 <a href="https://github.com/dieWehmut/music-converter/blob/main/LICENSE">
   <img src="https://img.shields.io/badge/LICENSE-MIT-green?style=flat-square&logo=github&logoColor=white&labelColor=555555" alt="License">
 </a>
@@ -46,6 +53,23 @@
 - [功能亮点](#功能亮点)
 - [技术实现](#技术实现)
   - [主要内容](#主要内容)
+<<<<<<< HEAD
+  - [目录概览](#目录概览)
+  - [环境要求](#环境要求)
+  - [本地测试](#本地测试)
+    - [后端设置](#后端设置)
+    - [前端设置](#前端设置)
+    - [API测试](#api测试)
+  - [部署说明](#部署说明)
+    - [后端部署](#后端部署)
+    - [前端部署](#前端部署)
+  - [API 说明](#api-说明)
+    - [异步任务](#异步任务)
+    - [响应字段](#响应字段)
+    - [环境变量](#环境变量)
+  - [故障排查](#故障排查)
+- [价值与展望](#价值与展望)
+=======
   - [核心代码](#核心代码)
   - [目录概览](#目录概览)
   - [环境要求](#环境要求)
@@ -69,6 +93,7 @@
   - [解决生成模型的“长音频崩坏”难题](#解决生成模型的长音频崩坏难题)
   - [与传统方法的对比](#与传统方法的对比)
   - [未来展望](#未来展望)
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 - [第三方说明](#第三方说明)
   - [核心模型](#核心模型)
   - [基础框架](#基础框架)
@@ -85,6 +110,15 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 
 本项目旨在通过深度学习技术，构建一套自动化的音乐情绪与风格转换系统，核心解决三大痛点：
 
+<<<<<<< HEAD
+- **1.技术门槛高**：借助 YAMNet 模型的音频特征提取能力（通过backend/features/yamnet_extract.py封装实现）和 MusicGen 的音乐生成能力，让非专业用户无需掌握音乐理论即可完成风格转换
+
+- **2.处理效率低**：通过backend/inference/full_pipeline.py中的FullMusicPipeline类实现分析 - 生成全流程自动化，将传统需要数小时的编曲工作缩短至分钟级
+
+- **3.效果不稳定**：引入backend/inference/evaluate_generated.py中的评估体系，从风格增益、情绪增益、原始风格脱离度等多维度量化转换效果，确保输出质量
+
+系统融合前端交互（核心界面frontend/src/views/Home.vue）、后端 API 服务（backend/server.py）与深度学习推理 pipeline，既实现了对音频处理与生成技术的工程化落地，也为音乐创意表达提供了新的技术范式。通过 IndexedDB 实现的本地数据持久化（前端存储方案）和MC_DEV_MODE=1的开发者模式，进一步降低了技术验证与二次开发的门槛。
+=======
 - **1.技术门槛高**：借助 YAMNet 模型的音频特征提取能力（通过 `backend/features/yamnet_extract.py` 封装实现）和 MusicGen 的音乐生成能力，让非专业用户无需掌握音乐理论即可完成风格转换。
 
 - **2.处理效率低**：通过 `backend/inference/full_pipeline.py` 中的 `FullMusicPipeline` 类实现分析 - 生成全流程自动化，将传统需要数小时的编曲工作缩短至分钟级。
@@ -92,15 +126,21 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - **3.效果不稳定**：引入 `backend/inference/evaluate_generated.py` 中的评估体系，从风格增益、情绪增益、原始风格脱离度等多维度量化转换效果，确保输出质量。
 
 系统融合前端交互（核心界面 、后端 API 服务与深度学习推理 pipeline，既实现了对音频处理与生成技术的工程化落地，也为音乐创意表达提供了新的技术范式。
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 # 功能亮点
 
 - **多格式支持**：上传 WAV/MP3（或任何 `librosa` 支持的格式）并直接在浏览器中试听。
 - **智能分析**：运行风格与情绪识别模型（YAMNet + 自定义分类器），返回概率分布，方便可视化与后续决策。
 - **生成式转换**：选择目标风格/情绪后，触发异步音乐生成任务（基于 MusicGen），完成后可下载或播放结果。
+<<<<<<< HEAD
+- **持久化体验**：前端使用 IndexedDB 缓存上传与任务状态，刷新页面也不会丢失。
+- **开发者友好**：`MC_DEV_MODE=1` 可启用 DEV 模式，快速返回伪造但稳定的数据，方便无 GPU 的前端联调。
+=======
 - **智能队列系统**：后端内置优先级队列，短任务（<20s）自动插队优先处理，长任务后台排队。
 - **长音频支持**：通过自动化切片与拼接技术，突破 MusicGen 的 30s 生成限制，支持任意长度音频。
 - **持久化体验**：前端使用 IndexedDB 缓存上传与任务状态，刷新页面也不会丢失。
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 # 技术实现
 
@@ -110,6 +150,10 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - **后端**（`backend/`）：`server.py` 提供 API、管理后台任务，并加载 `backend/inference/full_pipeline.py` 的 `FullMusicPipeline`，支持风格与情绪的分析与生成。
 - **模型栈**：PyTorch (MusicGen)、TensorFlow (YAMNet)、Transformers、librosa 等依赖列于 `backend/requirements.txt`。
 
+<<<<<<< HEAD
+## 目录概览
+
+=======
 ## 核心代码
 
 以下是项目关键模块的深度解读与核心逻辑展示：
@@ -192,6 +236,7 @@ def build_prompt(self, melody_info, style, ...):
 ## 目录概览
 
 
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 ```
 music-converter/
 ├── backend/
@@ -240,6 +285,15 @@ music-converter/
   - **GPU**：支持 CUDA 的 NVIDIA 显卡（8GB+ 显存），以便秒级完成生成任务。纯 CPU 亦可运行但较慢。
 - **系统工具**：FFmpeg（必须安装，用于音频处理）。
 
+<<<<<<< HEAD
+## 本地测试
+
+### 后端设置
+
+请先准备好 Python 3.10+ 环境（推荐使用 Conda）。
+
+**第一步：进入目录并创建环境**
+=======
 # 本地开发指南
 
 ## 后端设置
@@ -247,12 +301,41 @@ music-converter/
 请先准备好 Python 3.10+ 环境（推荐使用 Conda）。
 
 **步骤 1：创建并激活环境**
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 ```bash
 cd backend
+
+# [通用] 使用 Conda 创建环境
 conda create -n mc-env python=3.10 -y
 conda activate mc-env
 ```
+<<<<<<< HEAD
+
+**如果不使用 Conda，也可以使用 `venv`**
+
+Windows: 
+```
+python -m venv venv
+venv\Scripts\activate
+```
+macOS/Linux: 
+```
+python -m venv venv
+source venv/bin/activate
+```
+
+**第二步：安装系统依赖 (仅 Linux)**
+
+Windows 和 macOS 用户通常不需要此步骤，除非缺少 FFmpeg。
+
+```bash
+# Ubuntu/Debian 示例
+sudo apt update && sudo apt install -y ffmpeg git
+```
+
+**第三步：安装 Python 依赖**
+=======
 > **预期输出**：终端前缀变为 `(mc-env)`。
 
 **步骤 2：安装系统级依赖 (FFmpeg)**
@@ -267,12 +350,49 @@ conda activate mc-env
     ```
 
 **步骤 3：安装 Python 依赖**
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 ```bash
 pip install -r requirements.txt
 ```
 > **预期输出**：显示 `Successfully installed torch... tensorflow...` 等信息，无红色报错。
 
+<<<<<<< HEAD
+**第四步：启动后端服务**
+
+根据你的操作系统选择对应的命令。
+
+**Windows (CMD / PowerShell)**
+
+```powershell
+# [可选] 启用 DEV 模式 (跳过模型加载，适合无 GPU 调试)
+set MC_DEV_MODE=1
+
+# 启动服务
+uvicorn backend.server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**macOS / Linux**
+
+```bash
+# [可选] 启用 DEV 模式 (跳过模型加载，适合无 GPU 调试)
+export MC_DEV_MODE=1
+
+# 启动服务
+uvicorn backend.server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+终端出现 `INFO: Application startup complete.` 即代表后端就绪。
+
+> **模型下载提示**：首次启动会自动下载模型。若网络受限，请参考下文“环境变量”设置 `HF_ENDPOINT` 镜像，或手动下载 YAMNet 模型。
+
+### 前端设置
+
+确保已安装 Node.js (v20+)。
+
+**第一步：安装依赖**
+
+=======
 **步骤 4：启动后端服务**
 
 根据你的操作系统选择命令。
@@ -306,16 +426,233 @@ pip install -r requirements.txt
 
 **步骤 1：安装依赖**
 
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 ```bash
 cd frontend
 npm install
 ```
 
+<<<<<<< HEAD
+**第二步：启动开发服务器**
+=======
 **步骤 2：启动开发服务器**
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 ```bash
 npm run dev
 ```
+<<<<<<< HEAD
+
+默认访问地址：`http://localhost:5173`。
+
+### API测试
+
+本地调试时，先确保后端已启动并监听 `http://localhost:8000`，再启动前端并通过浏览器访问 `http://localhost:5173` 进行交互测试。
+
+- 浏览器测试：上传音频并观察任务进度、情绪/风格预测与生成结果。
+
+- 命令行（curl）示例：
+
+1) 健康检查
+```bash
+curl http://localhost:8000/health
+```
+
+2) 请求音频特征（分析）
+```bash
+curl -X POST -F "file=@/path/to/audio.wav" http://localhost:8000/api/features
+```
+
+3) 发起转换任务（异步）
+```bash
+curl -X POST -F "file=@/path/to/audio.wav" -F "style=pop" -F "emotion=happy" http://localhost:8000/api/convert
+```
+
+4) 查询任务状态
+```bash
+curl http://localhost:8000/api/tasks/01234567
+```
+
+## 部署说明
+
+### 后端部署
+
+在服务器上长期运行时，建议配合 `nohup` 保持后台运行，并配置 Nginx 进行反向代理。
+
+**前提**：请确保当前处于项目根目录（例如 `/root/music-converter`），而不是 `backend` 内部。
+
+**启动服务 (标准流程)**
+
+为了防止环境丢失导致 `ModuleNotFoundError`，建议按以下步骤操作：
+
+```bash
+# 1. 杀掉旧进程 (防止端口冲突)
+pkill -f uvicorn
+
+# 2. 激活虚拟环境 (根据你的安装方式选一个)
+# Linux/macOS (venv):
+source backend/venv/bin/activate
+# Windows:
+# backend\venv\Scripts\activate
+# Conda:
+# conda activate mc-env
+
+# 3. 启动服务 (后台运行)
+# 注意：必须加上 -m uvicorn 以确保 python 能找到包
+nohup python3 -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+
+# ★ 稳妥启动技巧 (推荐) ★
+# 如果发现 nohup 报错找不到模块，请直接指定虚拟环境 python 的绝对路径运行：
+# nohup /path/to/venv/bin/python3 -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+```
+
+**验证运行**
+
+```bash
+# 查看实时日志
+tail -f server.log
+```
+当看到 `INFO: Application startup complete.` 时，说明服务启动成功。
+
+**Nginx 反向代理 (推荐)**
+
+建议配置 Nginx 处理 HTTPS、域名转发及大文件上传限制。
+
+配置文件示例 (`/etc/nginx/conf.d/music-backend.conf`)：
+
+```nginx
+server {
+    listen 80;
+    server_name api.your-domain.com; # 替换为你的域名
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        
+        # [关键] 允许 50MB 音频文件上传，防止 413 Entity Too Large 错误
+        client_max_body_size 50M; 
+    }
+}
+```
+
+
+### 前端部署
+
+**方式 A：自动化部署 (推荐 - Vercel / Netlify / Railway)**
+1. 将代码推送至 GitHub/GitLab。
+2. 在 Vercel 或 Netlify 等平台导入本项目。
+3. **关键配置**：在部署平台的 **Environment Variables** (环境变量) 设置中，请务必修改/添加 API Base URL 配置，使其指向你的生产环境后端 HTTPS 地址（例如 `https://api.your-domain.com`）。
+
+**方式 B：手动构建 (Nginx 静态托管)**
+```sh
+cd frontend
+npm run build
+# 构建产物位于 frontend/dist
+```
+构建完成后，可将 `dist` 目录内的文件上传至 Nginx 的静态资源目录 (`/var/www/html`) 或其他静态托管服务。
+
+## API 说明
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| `GET` | `/` | 返回简单 HTML，确认后端在线 |
+| `GET` | `/health` | 健康检查，返回 `ok` |
+| `GET` | `/api/styles` | 返回可用风格标签 |
+| `GET` | `/api/emotions` | 返回可用情绪标签 |
+| `POST` | `/api/features` | 上传音频 `file`，返回风格/情绪预测及概率 |
+| `POST` | `/api/convert` | 上传音频并指定目标风格/情绪，启动异步转换 |
+| `GET` | `/api/tasks/{task_id}` | 查询任务状态（`pending`/`processing`/`success`/`failed`） |
+| `GET` | `/api/tasks/{task_id}/download` | 任务成功后下载生成的 WAV |
+
+### 异步任务
+
+1. 前端调用 `/api/convert` 上传音频。
+2. 后端将任务写入内存 `TASKS`，后台线程调用 `FullMusicPipeline.process`。
+3. 前端轮询 `/api/tasks/{task_id}`。
+4. 状态变为 `success` 时，调用下载接口获取结果文件。
+
+### 响应字段
+
+- `task_id`: 内部任务 id，用于查询状态与下载。
+- `status`: `pending` / `processing` / `success` / `failed`。
+- `message`: 可选的错误或进度信息。
+- `result.file`: 下载链接（若 `status === success`）。
+
+### 环境变量
+- `MC_DEV_MODE`: 设置为 `1` 时启用 DEV 模式，返回伪造数据并跳过模型加载。
+- `HF_ENDPOINT`: 指定 Hugging Face 镜像地址用于模型下载。
+- `ALLOW_ORIGINS`: 可指定前端允许的 CORS 域列表（在 `server.py` 中解析）。
+- `PORT`: 服务端口（默认 8000）。
+
+## 故障排查
+
+- **下载模型报错 `Connection refused` / `Network unreachable`**：
+  服务器无法连接 Hugging Face 或 TFHub。请设置 `HF_ENDPOINT` 环境变量，或手动下载 YAMNet 模型至 `backend/models/yamnet/` 目录。
+- **启动时显示 `Killed`**：
+  内存不足 (OOM)。请检查 Swap 是否开启，或升级服务器内存。
+- **`No module named backend.server`**：
+  运行路径错误。请退回到项目根目录，使用 `python3 -m uvicorn backend.server:app` 启动。
+- **前端 CORS 错误**：
+  检查前端域名是否已添加到 `server.py` 的 `allow_origins` 列表。
+- **Mixed Content 错误**：
+  前端是 HTTPS，后端是 HTTP。请配置 Nginx + SSL 证书，使后端支持 HTTPS。
+- **上传失败 / 413 Payload Too Large**：
+  Nginx 或前端上传配置可能限制了文件大小。请检查 Nginx 的 `client_max_body_size` 和前端的上传限制。
+- **权限/路径错误**：
+  `backend/output` 目录需要有写入权限（进程用户）。若发生权限错误，改变目录权限或修改 `server.py` 中的输出路径。
+
+# 价值与展望
+
+## 应用场景与潜力
+本项目不仅是一个技术验证原型，在数字媒体与创意产业中具有广泛的应用潜力：
+
+- **短视频与自媒体创作**：为视频创作者提供低成本的 BGM 生成方案。用户无需担心版权问题，即可将现有素材快速转换为符合视频氛围（如“欢快”、“悲伤”）的背景音乐。
+- **音乐制作辅助（Demo 快速验证）**：辅助初级音乐制作人或作曲家。用户可以录制一段简单的哼唱或旋律，通过系统快速尝试不同的编曲风格（如从 Pop 转为 Jazz），激发创作灵感。
+- **游戏与沉浸式体验**：在游戏开发中，根据玩家当前的场景情绪自动调整背景音乐风格，实现动态音频（Adaptive Audio）的低成本生成。
+- **心理疗愈与个性化听感**：结合情绪识别技术，为用户生成符合当下心情或旨在调节心情的音乐，探索 AI 音乐疗法。
+
+## 当前局限与不足
+尽管本项目实现了端到端的转换流程，但在实际应用中仍存在以下挑战：
+
+- **推理资源消耗大**：目前集成的 MusicGen 模型对 GPU 显存要求较高（建议 8GB+），在纯 CPU 环境下生成速度较慢，难以满足实时性要求极高的交互场景。
+- **长音频一致性**：受限于模型上下文窗口，生成的音频目前多为短片段（10-30秒）。在生成更长时间的音乐时，可能会出现旋律结构松散或风格前后不一致的问题。
+- **细粒度控制有限**：目前系统主要基于宏观的“情绪”和“风格”标签进行控制，尚不支持对特定乐器（如“只保留钢琴”）或特定节奏型进行精细化调整。
+
+## 未来改进方向
+针对上述不足，我们计划从以下维度进行优化：
+
+- **模型轻量化与加速**：探索模型量化（Quantization）技术或引入更轻量级的生成模型（如 MusicGen-Small 的蒸馏版），降低部署门槛，提升生成速度。
+- **丰富交互维度**：引入更多模态的输入控制，例如支持通过文字描述（Text-to-Music）与音频参考相结合的多模态 Prompt，让生成结果更精准。
+- **云端部署与微服务化**：将推理模块独立为高性能微服务，配合 Celery + Redis 消息队列构建弹性伸缩的云端集群，以支持多用户并发访问。
+
+# 第三方说明
+
+本项目核心依赖于以下深度学习模型与框架。若打算分发本项目或其中的模型权重，请务必查看上游项目的许可证（LICENSE）并在发布中包含必要的 LICENSE/NOTICE 文件。
+
+## 核心模型
+
+- **YAMNet (TensorFlow Hub)**
+  - **用途**：音频事件分类与特征提取。本项目使用 YAMNet 提取音频的 Embeddings 特征，用于后续的情绪与风格分析。
+  - **来源**：[TensorFlow Hub - YAMNet](https://tfhub.dev/google/yamnet/1)
+  - **许可**：Apache 2.0
+  - **说明**：项目中如需离线使用，请将模型放置于 [backend/models/yamnet/](backend/models/yamnet/)（目录下应包含 `saved_model.pb`、`variables/`、`assets/yamnet_class_map.csv` 等文件）。
+
+- **MusicGen (Meta AI / Hugging Face)**
+  - **用途**：基于文本提示或音频提示生成高质量音乐。本项目利用 MusicGen 根据用户选择的目标情绪与风格生成新的编曲。
+  - **来源**：[Hugging Face - Facebook/MusicGen](https://huggingface.co/facebook/musicgen-small) (默认为 small 版本，可配置)
+  - **许可**：CC-BY-NC 4.0 (非商业用途) / MIT (视具体模型版本而定，请务必核实)
+  - **说明**：模型权重通常由 `transformers` 库自动下载并缓存。
+
+## 基础框架
+
+- **TensorFlow / tensorflow-hub**：用于加载与运行 YAMNet 模型。
+- **PyTorch**：用于运行 MusicGen 生成模型。
+- **Hugging Face Transformers**：提供 MusicGen 的加载接口与预训练权重管理。
+- **Librosa**：用于音频信号处理、加载与特征预处理。
+- **FFmpeg**：底层音频编解码支持（系统级依赖）。
+=======
 > **预期输出**：
 > ```text
 > VITE v5.x.x  ready in 300 ms
@@ -533,9 +870,14 @@ npm run build
 -   **[FastAPI](https://fastapi.tiangolo.com/)**: 高性能 Python Web 框架。
 -   **[Librosa](https://librosa.org/)**: 音频信号处理标准库。
 -   **[Hugging Face Transformers](https://huggingface.co/docs/transformers/index)**: 模型加载与管理。
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
 
 # 写在最后
 
 这个项目由小组的五位成员共同完成。
 
+<<<<<<< HEAD
 @dieWehmut @spacewolf28 @NanXiang-git @lsw6132 @XiaoYang-Zhou
+=======
+@dieWehmut @spacewolf28 @NanXiang-git @lsw6132 @XiaoYang-Zhou
+>>>>>>> c874920e640810b96189f8502876ab84f4a50610
