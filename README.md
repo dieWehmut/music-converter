@@ -110,7 +110,7 @@ Music Converter 是一套端到端的音乐情绪/风格转换实验项目。用
 - **后端**（`backend/`）：`server.py` 提供 API、管理后台任务，并加载 `backend/inference/full_pipeline.py` 的 `FullMusicPipeline`，支持风格与情绪的分析与生成。
 - **模型栈**：PyTorch (MusicGen)、TensorFlow (YAMNet)、Transformers、librosa 等依赖列于 `backend/requirements.txt`。
 
-## 核心代码
+## 功能代码
 
 以下是项目关键模块的深度解读与核心逻辑展示：
 
@@ -189,6 +189,124 @@ def build_prompt(self, melody_info, style, ...):
     """
 ```
 
+## 训练过程
+📦 **数据集准备** 
+在开始训练之前，需要准备原始音频数据。本项目内置了自动化脚本以获取 **MUSGEN-EmoMusic** 情绪数据集。
+1. **自动下载情绪数据集**
+脚本文件: `backend/dataset/download_emomusic.py`
+该脚本基于 `huggingface_hub` 库，从 Hugging Face 镜像站自动拉取 `jfforero/MUSGEN-EmoMusic` 数据集。
+**数据源**: MUSGEN-EmoMusic
+**存储位置**: 下载完成后，原始 WAV 文件将保存在 `backend/dataset/emomusic_raw/` 目录下。
+**兼容性说明**: 脚本中设置了 `local_dir_use_symlinks=False`，确保在 Windows 环境下也能无需管理员权限正常下载真实文件，而非快捷方式。
+运行命令:
+```Bash
+# 1. 确保安装了 huggingface_hub
+pip install huggingface_hub
+
+# 2. 运行下载脚本 (请在项目根目录下运行)
+python backend/dataset/download_emomusic.py
+```
+**注意**: 下载过程取决于网络环境，数据集包含大量音频文件，请耐心等待直到出现 `🎉 下载完成！` 提示。
+
+🧠 **伴奏生成核心：参数大脑**
+在 DSP 生成路径中，系统不依赖端到端的深度学习模型生成音频，而是通过 **Param_ai**（位于 `dsp/style_accompaniment/brain/`）作为规则引擎，将抽象的情绪标签“翻译”为具体的乐理参数。
+1. **规则引擎架构**
+**基类**: `BaseParamsAI`
+**实现**: `RockParamsAI` (针对摇滚风格的规则集)
+该模块充当了“音乐制作人”的角色，它接收上游分析出的**情绪 (Emotion)** 和 **风格 (Style)**，并基于乐理规则动态计算出以下参数：
+**调式 (Scale/Key)**: 决定音乐的色彩（如大调明亮，小调悲伤）。
+**和弦进行 (Chord Progression)**: 决定和声走向（如强力和弦 vs 开放和弦）。
+**节奏 (Tempo/BPM)**: 决定速度。
+**乐器编排 (Arrangement)**: 鼓组模式、贝斯线条、旋律走向。
+**曲式结构 (Structure)**: 决定段落安排（如 Intro-Verse-Chorus）。
+2. **情感-乐理映射逻辑**
+在 `RockParamsAI` 中，我们预设了基于情绪的生成规则。例如，当输入情绪为 "**Angry" (愤怒)** 时，引擎会做出以下决策：
+| 参数维度 | 决策逻辑 | 代码实现片段 |
+|---|---|---|
+| 调式 | 选择小调以营造压抑感 | `return "E minor"` |
+| 和弦 | 使用 Power Chords（五和弦）增加力量感 | `return ["E5", "G5", "A5", "B5"]` |
+| 鼓组 | 加重底鼓与军鼓，模拟双踩感觉 | `return "Heavy kick, loud snare..."` |
+| 速度 | 提升 BPM 以增加紧张感 | `self.tempo = 120` |
+| 曲式 | 增加 Break 段落 | `return "Intro – Verse – Verse – Break..."` |
+3. **代码示例**
+该模块最终输出一个结构化的 Prompt 或参数字典，供后续的生成器调用：
+```Python
+# 实例化参数大脑
+brain = RockParamsAI(emotion="sad", length_s=30)
+
+# 自动推导所有参数
+print(brain.tempo)   # 输出: 100
+print(brain.scale)   # 输出: E minor
+print(brain.chords)  # 输出: ['Em', 'G', 'D', 'Am']
+
+# 生成结构化描述 (供 MusicGen 或 DSP 混音器参考)
+prompt = brain.build_prompt()
+```
+
+🌪️**详细训练流水线**
+在准备好原始数据后，请按照以下顺序执行脚本，完成模型训练。
+1. **数据增强**
+脚本: `training/augment_emotion.py`
+
+为了解决情绪数据集样本量不足的问题，该脚本会对 `emomusic_raw` 中的每一条音频进行 5 倍扩充。
+- **增强策略**:
+  - `Original`: 保持原样
+  - `Speed Down`: 0.9x 降速
+  - `Speed Up`: 1.1x 提速
+  - `Noise`: 添加高斯白噪 (Factor 0.005)
+  - `Pitch Shift`: 正弦波频率扰动模拟微移调
+- 输出: 生成文件至 `backend/dataset/emomusic_aug/`
+```Bash
+python training/augment_emotion.py
+```
+2. **特征提取** 
+本项目使用两套不同的特征提取方案来应对情绪和风格的分析需求。
+A. **情绪特征**
+脚本: `training/extract_emotion_embedding.py`
+
+利用 Google 预训练的 YAMNet 模型提取高维语义特征。
+- 输入: 增强后的音频 (`emomusic_aug`)
+- 处理: 调用 `backend/features/yamnet_extract.py`
+- 输出: 1024 维向量 -> `backend/dataset/emomusic_embedding/emotion_dataset.json`
+```Bash
+python training/extract_emotion_embedding.py
+```
+B. **风格特征**
+脚本: `training/build_style_dataset.py`
+⚠️ 注意: 运行前请打开该文件，修改 `GTZAN_PATH` 变量为您本地 GTZAN 数据集的解压路径。
+利用 Librosa 提取 68 维传统数字信号特征，并建立 5 大类风格映射（Pop, Rock, Jazz, Classical, Electronic）。
+ - 特征明细 (68 dims):
+   - Tempo (1) + RMS Energy (1) + Spectral Centroid (1)
+   - Chroma (12): 色度特征，反映和声
+   - Mel Spectrogram (40): 梅尔频谱均值
+   - Spectral Contrast (7): 频谱对比度
+   - Tonnetz (6): 音调网络特征
+ - 输出: `backend/dataset_open/style_dataset.json`
+```Bash
+python training/build_style_dataset.py
+```
+3. **模型训练**
+算法: XGBoost Classifier (配合 StandardScaler 标准化)
+**A. 训练情绪模型**
+脚本: `training/train_emotion_model.py`
+
+ - 配置: `n_estimators=250, max_depth=8, learning_rate=0.05`
+ - 产出:
+   - 模型: `backend/models/emotion_model.pkl`
+   - 标签映射: `backend/models/emotion_label_encoder.pkl`
+```Bash
+python training/train_emotion_model.py
+```
+**B. 训练风格模型**
+脚本: `training/train_style_model.py`
+
+ - 配置: `n_estimators=300` (更深的模型以拟合复杂风格特征)
+ - 产出:
+   - 模型: `backend/models/style_model.pkl`
+   - 标签映射: `backend/models/style_label_encoder.pkl`
+```Bash
+python training/train_style_model.py
+```
 ## 目录概览
 
 
