@@ -47,7 +47,9 @@
 - [技术实现](#技术实现)
   - [主要内容](#主要内容)
   - [核心代码](#核心代码)
-  - [目录概览](#目录概览)
+  - [概览](#概览)
+    - [结构图](#结构图)
+    - [目录架构](#目录架构)
   - [环境要求](#环境要求)
 - [本地开发指南](#本地开发指南)
   - [后端设置](#后端设置)
@@ -310,41 +312,113 @@ python training/train_style_model.py
 ## 目录概览
 
 
+### 结构图
+```mermaid
+graph LR
+    %% =======================
+    %% 1. 样式定义 (扁平化配色)
+    %% =======================
+    classDef vue fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000,rx:5,ry:5
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000,rx:5,ry:5
+    classDef core fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000,rx:5,ry:5
+    classDef data fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray: 5 5,color:#000
+    classDef file fill:#fff8e1,stroke:#f9a825,stroke-width:2px,stroke-dasharray: 5 5,color:#000
+
+    %% =======================
+    %% 2. 节点定义
+    %% =======================
+    
+    %% 前端节点
+    Client("💻 Vue Frontend<br>(User / Browser)"):::vue
+
+    subgraph Backend [⚙️ FastAPI Backend System]
+        direction LR
+
+        %% --- 第一列：API 接口 ---
+        subgraph Col_API [Interface]
+            direction TB
+            API_Feat["POST /features<br>(同步分析)"]:::api
+            API_Conv["POST /convert<br>(异步触发)"]:::api
+            API_Get["GET /tasks & /file<br>(轮询/下载)"]:::api
+        end
+
+        %% --- 第二列：核心逻辑 (已更新文案) ---
+        subgraph Col_Logic [Core Logic]
+            direction TB
+            %% 明确 YAMNet 提取特征，XGBoost 分类
+            Analyzer["Analyzer Module<br>(YAMNet: Extract)<br>(XGBoost: Classify)"]:::core
+            %% 明确 MusicGen 进行生成
+            MusicGen["MusicGen Engine<br>(Transformer)<br>Audio Generation"]:::core
+        end
+
+        %% --- 第三列：资源数据 ---
+        subgraph Col_Data [Resources]
+            direction TB
+            Models[("Model Files<br>(.pkl)")]:::data
+            WavFiles[("Generated Audio<br>(.wav)")]:::file
+        end
+    end
+
+    %% =======================
+    %% 3. 布局与连线
+    %% =======================
+
+    %% --- 内部垂直对齐 (防止框变形) ---
+    API_Feat ~~~ API_Conv ~~~ API_Get
+    Analyzer ~~~ MusicGen
+    Models ~~~ WavFiles
+
+    %% --- 核心交互连线 ---
+    
+    %% 1. 上路：分析流
+    Client <==> |"1. Upload"| API_Feat
+    API_Feat <--> |"Extract Features"| Analyzer
+    Models -.-> |"Load Models"| Analyzer
+
+    %% 2. 中路：生成流
+    Client --> |"2. Start"| API_Conv
+    API_Conv --> |"Trigger"| MusicGen
+    Models -.-> |"Load Weights"| MusicGen
+    MusicGen --> |"Save File"| WavFiles
+
+    %% 3. 下路：下载流
+    Client -.-> |"3. Poll / Get"| API_Get
+    WavFiles -.-> |"Stream"| API_Get
+
+    %% --- 强制对齐 (Vue 垂直居中锚点) ---
+    Client ~~~ API_Conv
+```
+
+### 目录架构
 ```
 music-converter/
 ├── backend/
 │   ├── server.py — FastAPI 应用入口，定义路由、CORS、任务队列与文件输出路径
-│   ├── requirements.txt — 后端 Python 依赖
+│   ├── requirements.txt — 环境依赖
+│   ├── ...
+│   ├── datasets/ — 数据集管理与存储目录
+│   ├── dsp/ — 数字信号处理与基于采样的伴奏生成系统 (方向A的核心)
+│   ├── training/ — 轻量级分类模型 (XGBoost) 的训练流水线
 │   ├── features/ — 音频特征提取相关代码目录
 │   │   └── yamnet_extract.py — 封装 YAMNet，提供 embedding 与类别概率提取
 │   ├── inference/ — 推理与生成管线核心模块（分析 → 提示 → 生成 → 后处理）
+│   │   ├── ...
 │   │   ├── full_pipeline.py — 协调分析、提示构建与生成的高阶类
 │   │   ├── generate_music.py — 与 MusicGen 交互，加载模型并保存生成音频
-│   │   ├── analyze.py — 组合分析流程，调用特征提取与分类器并组织输出
-│   │   ├── melody_extractor.py — 提取主旋律/音高序列的工具
-│   │   ├── ...
 │   │   └── prompt_builder.py — 构建传给 MusicGen 的 prompt
 │   ├── models/ — 模型存放（可离线放置模型权重）
-│   │   ├── ...
-│   │   └── yamnet/ — YAMNet 离线模型
 │   └── utils/ — 各类辅助函数
 ├── frontend/
-│   ├── index.html
 │   ├── ...
-│   └── src/
-│       ├── components/
-│       ├── views/
-│       │   └── Home.vue — 主页面
+│   └── src/ — 核心前端代码
 │       ├── ...
 │       └──api/
 │          ├── index.js — API 基础客户端，配置 `baseURL` 与统一请求封装
 │          ├── emotion.js — 封装获取情绪标签的调用
 │          └── upload.js — 封装文件上传、启动转换与查询任务状态的 API
 ├── ...
-├── docs/ 
-├── LICENSE 
-├── Colab-music-converter.ipynb — Colab 笔记本，用于在线体验
-├── Dockerfile — Docker 容器化配置
+├── Colab-music-converter.ipynb — Colab 测试用
+├── Dockerfile — Docker 配置
 └── README.md — 项目说明文档
 ```
 
