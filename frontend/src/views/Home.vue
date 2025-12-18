@@ -214,7 +214,7 @@ function handleRecentClick(t) {
 }
 
 // Expose reactive state to parent components (App.vue) after recentTasks is defined
-defineExpose({ files, activeId, docHeaders, styles, emotions, recentTasks })
+defineExpose({ files, activeId, docHeaders, styles, emotions, recentTasks, onFilesSelected })
 
 async function saveUpload(record) {
   const db = await openDb()
@@ -661,7 +661,8 @@ function onEmotionChange(item) {
   }
 }
 
-async function doExtractFor(item) {
+async function doExtractFor(item, force = false) {
+  if (!force && item.features) return
   item.error = ''
   item.extracting = true
   item.features = null
@@ -1122,7 +1123,10 @@ function taskDisplayLabel(file, task) {
                     <EmotionResult v-if="item.showAnalysis" :features="item.features" />
                   </transition>
                 </div>
-                <div v-if="item.error" class="error">{{ item.error }}</div>
+                <div v-if="item.error" class="error">
+                  {{ item.error }}
+                  <button class="btn btn--success btn--xs" style="margin-left: 6px;" @click="doExtractFor(item, true)">重试</button>
+                </div>
                 
                 <div v-if="item.tasks && item.tasks.length" class="tasks-list">
                   <div class="tasks-header-row">
@@ -2211,4 +2215,40 @@ h1 {
 [data-doc-header] {
   scroll-margin-top: 24px;
 }
+  
+/* Ensure shields.io badges rendered inside README (markdown) are laid out horizontally
+   when placed inside a centered div. This handles both existing <div align="center">...
+   blocks and optional .badges-row wrappers. */
+.markdown-body div[align="center"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.markdown-body div[align="center"] > span,
+.markdown-body div[align="center"] > div {
+  /* allow wrappers like <span class="badges-row"> or other containers */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.markdown-body div[align="center"] a {
+  display: inline-flex;
+  align-items: center;
+}
+.markdown-body div[align="center"] img {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+}
+
+.markdown-body .badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
 </style>
+
