@@ -1,0 +1,27 @@
+# 忽略 Git 文件
+.git
+.gitignore
+
+# 忽略 Python 缓存
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略本地虚拟环境
+.venv
+venv
+env
+
+# 忽略本地的输出文件和临时文件
+backend/output/*
+backend/test_audio.wav
+!backend/output/.gitkeep
+
+# 忽略本地下载的大模型 (建议在容器启动时下载或挂载卷)
+backend/models/*
+!backend/models/.gitkeep
+
+# 忽略 IDE 配置
+.idea
+.vscode
