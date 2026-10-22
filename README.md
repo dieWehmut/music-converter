@@ -70,6 +70,7 @@
   - [Colab运行](#colab运行)
   - [传统服务器部署 (Nginx + Nohup)](#传统服务器部署-nginx--nohup)
   - [前端构建部署](#前端构建部署)
+    - [GitHub Pages（自动部署）](#github-pages自动部署)
   - [部署故障排查](#部署故障排查)
 - [API 接口文档](#api-接口文档)
   - [核心接口](#核心接口)
@@ -592,6 +593,14 @@ npm run build
 **步骤 2：静态托管**
 
 将 `frontend/dist` 目录下的所有文件上传至 Nginx 的 `/var/www/html` 或部署到 Vercel/Netlify。
+
+### GitHub Pages（自动部署）
+
+本仓库已配置 GitHub Actions：向 `main` 分支 push 后会自动构建 `frontend/` 并发布到 GitHub Pages，站点地址为 <https://dieWehmut.github.io/music-converter/>。
+
+-   工作流文件：`.github/workflows/deploy.yml`（官方 Pages 方案：configure-pages → upload-pages-artifact → deploy-pages）。
+-   `frontend/vite.config.js` 中设置了 `base: './'`，保证产物在 `/<repo>/` 子路径下资源路径正确。
+-   Pages 上托管的是**纯静态前端**，后端 FastAPI 服务不在其中；若默认 API 地址（ngrok）不可达，页面仍可正常加载，只是接口调用会失败。如需接入自己的后端，构建时通过 `VITE_API_BASE` 指定即可。
 
 ## 部署故障排查
 
